@@ -79,7 +79,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const reply = await anthropic.messages.create({
       model: process.env.CLAUDE_MODEL || "claude-sonnet-5",
-      max_tokens: 1000,
+      max_tokens: 2048,
+      // This is a short conversational Q&A, not a task needing deep
+      // reasoning — disable thinking so the token budget goes entirely to
+      // the visible reply (adaptive thinking is on by default on this model
+      // and otherwise can consume the whole max_tokens budget on nothing
+      // but thinking, leaving an empty response).
+      thinking: { type: "disabled" },
       system: reportChatSystemPrompt({
         reportTitle: report.title,
         reportModule: report.module,

@@ -91,6 +91,12 @@ export async function POST(request: Request) {
     const message = await anthropic.messages.create({
       model: process.env.CLAUDE_MODEL || "claude-sonnet-5",
       max_tokens: 5000,
+      // This produces a fixed structured report (or a single analysis pass),
+      // not a task needing extended reasoning — disable thinking so the
+      // whole token budget goes to the visible output. Adaptive thinking is
+      // on by default on this model and can otherwise consume the entire
+      // max_tokens budget on thinking alone.
+      thinking: { type: "disabled" },
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: prompt }],
       ...(isCompanyMode

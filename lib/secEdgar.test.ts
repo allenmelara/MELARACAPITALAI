@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { extractCompanyInputsFromFacts, type CompanyFacts } from "./secEdgar";
+import {
+  extractCompanyInputsFromFacts,
+  extractFinancialStatements,
+  type CompanyFacts
+} from "./secEdgar";
 
 type FactOverrides = Partial<{
   fy: number;
@@ -178,5 +182,92 @@ describe("extractCompanyInputsFromFacts — empty facts", () => {
     const { inputs, sourceNotes } = extractCompanyInputsFromFacts({});
     expect(inputs).toEqual({});
     expect(Object.values(sourceNotes).every((status) => status === "not_found")).toBe(true);
+  });
+});
+
+describe("extractFinancialStatements", () => {
+  const twoYearFacts: CompanyFacts = {
+    facts: {
+      "us-gaap": {
+        Revenues: {
+          units: {
+            USD: [
+              fact(1_000_000, "2023-12-31", "2023-01-01", { fy: 2023 }),
+              fact(900_000, "2022-12-31", "2022-01-01", { fy: 2022 }),
+              // quarterly slice must be ignored
+              fact(260_000, "2023-03-31", "2023-01-01", { form: "10-Q", fp: "Q1" })
+            ]
+          }
+        },
+        CostOfRevenue: {
+          units: {
+            USD: [
+              fact(600_000, "2023-12-31", "2023-01-01", { fy: 2023 }),
+              fact(550_000, "2022-12-31", "2022-01-01", { fy: 2022 })
+            ]
+          }
+        },
+        NetIncomeLoss: {
+          units: {
+            USD: [
+              fact(120_000, "2023-12-31", "2023-01-01", { fy: 2023 }),
+              fact(100_000, "2022-12-31", "2022-01-01", { fy: 2022 })
+            ]
+          }
+        },
+        Assets: {
+          units: {
+            USD: [
+              fact(2_000_000, "2023-12-31", undefined, { fy: 2023 }),
+              fact(1_800_000, "2022-12-31", undefined, { fy: 2022 })
+            ]
+          }
+        },
+        NetCashProvidedByUsedInOperatingActivities: {
+          units: { USD: [fact(180_000, "2023-12-31", "2023-01-01", { fy: 2023 })] }
+        },
+        PaymentsToAcquirePropertyPlantAndEquipment: {
+          units: { USD: [fact(50_000, "2023-12-31", "2023-01-01", { fy: 2023 })] }
+        }
+      }
+    }
+  };
+
+  const statements = extractFinancialStatements(twoYearFacts);
+
+  it("builds fiscal-year columns newest-first from the net-income spine", () => {
+    expect(statements.periods).toEqual(["FY2023", "FY2022"]);
+    expect(statements.periodEnds).toEqual(["2023-12-31", "2022-12-31"]);
+  });
+
+  it("aligns each line item's values to the shared periods", () => {
+    const revenue = statements.incomeStatement.find((r) => r.key === "revenue");
+    expect(revenue?.values).toEqual([1_000_000, 900_000]);
+    const assets = statements.balanceSheet.find((r) => r.key === "totalAssets");
+    expect(assets?.values).toEqual([2_000_000, 1_800_000]);
+  });
+
+  it("leaves a null in periods a line item did not report, rather than dropping the column", () => {
+    // Operating cash flow only exists for FY2023.
+    const ocf = statements.cashFlow.find((r) => r.key === "operatingCashFlow");
+    expect(ocf?.values).toEqual([180_000, null]);
+  });
+
+  it("omits line items the filer never tags", () => {
+    // No R&D tag was provided.
+    expect(statements.incomeStatement.find((r) => r.key === "rnd")).toBeUndefined();
+  });
+
+  it("derives free cash flow as operating cash flow minus capex per period", () => {
+    const fcf = statements.cashFlow.find((r) => r.key === "freeCashFlow");
+    expect(fcf?.values).toEqual([180_000 - 50_000, null]);
+  });
+
+  it("returns empty statements for empty facts without throwing", () => {
+    const empty = extractFinancialStatements({});
+    expect(empty.periods).toEqual([]);
+    expect(empty.incomeStatement).toEqual([]);
+    expect(empty.balanceSheet).toEqual([]);
+    expect(empty.cashFlow).toEqual([]);
   });
 });

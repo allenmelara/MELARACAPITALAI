@@ -7,6 +7,8 @@ import {
   resolveTickerToCik,
   getCompanyFacts,
   extractCompanyInputsFromFacts,
+  extractFinancialStatements,
+  getRecentFilings,
   type SourceStatus
 } from "@/lib/secEdgar";
 import { getQuote, getProfile } from "@/lib/finnhub";
@@ -43,7 +45,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: `No SEC filer found for ticker "${ticker}".` }, { status: 404 });
     }
 
-    const [facts, quote, profile] = await Promise.all([
+    const [facts, quote, profile, filings] = await Promise.all([
       getCompanyFacts(resolved.cik),
       getQuote(ticker).catch((error) => {
         logWarn("company-lookup.quote", error);
@@ -52,10 +54,15 @@ export async function GET(request: Request) {
       getProfile(ticker).catch((error) => {
         logWarn("company-lookup.profile", error);
         return null;
+      }),
+      getRecentFilings(resolved.cik).catch((error) => {
+        logWarn("company-lookup.filings", error);
+        return [];
       })
     ]);
 
     const { inputs, sourceNotes } = extractCompanyInputsFromFacts(facts);
+    const statements = extractFinancialStatements(facts);
     const combinedSourceNotes: Record<string, FieldSource> = { ...sourceNotes };
 
     if (quote) {
@@ -71,9 +78,19 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      company: { name: resolved.name, ticker },
+      company: {
+        // Prefer Finnhub's common name ("Apple Inc") over the SEC legal title
+        // ("APPLE INC") when available, so the selection UI reads naturally.
+        name: profile?.name || resolved.name,
+        ticker,
+        exchange: profile?.exchange ?? null,
+        industry: profile?.industry ?? null,
+        logo: profile?.logo ?? null
+      },
       inputs,
       sourceNotes: combinedSourceNotes,
+      statements,
+      filings,
       asOf: new Date().toISOString()
     });
   } catch (error) {

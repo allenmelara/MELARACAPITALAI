@@ -24,6 +24,12 @@ export async function getQuote(symbol: string): Promise<Quote | null> {
 
 export type Profile = {
   sharesOutstanding: number | null;
+  name: string | null;
+  exchange: string | null;
+  industry: string | null;
+  logo: string | null;
+  currency: string | null;
+  marketCap: number | null;
 };
 
 export async function getProfile(symbol: string): Promise<Profile | null> {
@@ -33,8 +39,74 @@ export async function getProfile(symbol: string): Promise<Profile | null> {
   if (!response.ok) {
     throw new Error(`Finnhub profile request failed: ${response.status}`);
   }
-  const data = (await response.json()) as { shareOutstanding?: number };
-  if (!data.shareOutstanding) return null;
-  // Finnhub reports shareOutstanding in millions.
-  return { sharesOutstanding: data.shareOutstanding * 1_000_000 };
+  const data = (await response.json()) as {
+    shareOutstanding?: number;
+    name?: string;
+    exchange?: string;
+    finnhubIndustry?: string;
+    logo?: string;
+    currency?: string;
+    marketCapitalization?: number;
+  };
+  // profile2 returns {} for an unknown symbol — treat an empty body as "no profile".
+  if (!data.name && !data.shareOutstanding && !data.exchange) return null;
+  return {
+    // Finnhub reports shareOutstanding and marketCapitalization in millions.
+    sharesOutstanding: data.shareOutstanding ? data.shareOutstanding * 1_000_000 : null,
+    name: data.name ?? null,
+    exchange: normalizeExchange(data.exchange),
+    industry: data.finnhubIndustry ?? null,
+    logo: data.logo ?? null,
+    currency: data.currency ?? null,
+    marketCap: data.marketCapitalization ? data.marketCapitalization * 1_000_000 : null
+  };
+}
+
+// Finnhub returns verbose exchange strings like "NASDAQ NMS - GLOBAL MARKET".
+// Collapse them to the recognizable venue name for the selection UI.
+function normalizeExchange(raw?: string): string | null {
+  if (!raw) return null;
+  const upper = raw.toUpperCase();
+  if (upper.includes("NASDAQ")) return "NASDAQ";
+  if (upper.includes("NEW YORK") || upper.includes("NYSE")) return "NYSE";
+  if (upper.includes("ARCA")) return "NYSE Arca";
+  if (upper.includes("BATS") || upper.includes("CBOE")) return "Cboe";
+  // Fall back to the first segment before a separator, title-cased lightly.
+  return raw.split(/[-,]/)[0].trim();
+}
+
+export type SymbolSearchResult = {
+  symbol: string;
+  name: string;
+  exchangeType: string;
+};
+
+// Powers the company-selection search box. Finnhub's /search returns a mix of
+// equities, ADRs, and derivatives across venues; we keep US-listed common stock
+// (primary listings, where the raw symbol has no venue suffix) so the user
+// picks a filer we can actually resolve to SEC facts later.
+export async function searchSymbols(query: string): Promise<SymbolSearchResult[]> {
+  const response = await fetch(
+    `https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${apiKey()}`
+  );
+  if (!response.ok) {
+    throw new Error(`Finnhub search request failed: ${response.status}`);
+  }
+  const data = (await response.json()) as {
+    result?: Array<{ description?: string; displaySymbol?: string; symbol?: string; type?: string }>;
+  };
+
+  return (data.result ?? [])
+    .filter((item) => {
+      if (!item.symbol || !item.description) return false;
+      if (item.type && item.type !== "Common Stock") return false;
+      // Skip foreign/OTC listings that carry a venue suffix (e.g. "AAPL.MX").
+      return !item.symbol.includes(".");
+    })
+    .slice(0, 8)
+    .map((item) => ({
+      symbol: (item.displaySymbol || item.symbol) as string,
+      name: item.description as string,
+      exchangeType: item.type ?? "Common Stock"
+    }));
 }

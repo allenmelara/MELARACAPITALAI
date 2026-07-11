@@ -149,6 +149,70 @@ describe("calculateCompanyMetrics — per-year projection", () => {
   });
 });
 
+describe("calculateCompanyMetrics — advanced settings (all optional, default-preserving)", () => {
+  it("defaults to a 5-year projection when projectionYears is omitted", () => {
+    const metrics = calculateCompanyMetrics(baseInputs);
+    expect(metrics.projectionYears).toBe(5);
+    expect(metrics.projection).toHaveLength(5);
+  });
+
+  it("projects the requested number of years when projectionYears is set", () => {
+    const metrics = calculateCompanyMetrics({ ...baseInputs, projectionYears: 8 });
+    expect(metrics.projectionYears).toBe(8);
+    expect(metrics.projection).toHaveLength(8);
+    expect(metrics.projection.map((p) => p.year)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("rounds a fractional projectionYears and ignores zero/negative values", () => {
+    expect(calculateCompanyMetrics({ ...baseInputs, projectionYears: 3.6 }).projectionYears).toBe(4);
+    expect(calculateCompanyMetrics({ ...baseInputs, projectionYears: 0 }).projectionYears).toBe(5);
+    expect(calculateCompanyMetrics({ ...baseInputs, projectionYears: -2 }).projectionYears).toBe(5);
+  });
+
+  it("uses today's EBITDA margin for the projection when no override is given", () => {
+    const withOverride = calculateCompanyMetrics({ ...baseInputs, ebitdaMarginOverride: baseInputs.ebitda / baseInputs.revenue });
+    const withoutOverride = calculateCompanyMetrics(baseInputs);
+    expect(withOverride.dcfEquityValue).toBeCloseTo(withoutOverride.dcfEquityValue, 6);
+  });
+
+  it("raises DCF value when the margin override projects higher forward margins", () => {
+    const lowerMargin = calculateCompanyMetrics(baseInputs);
+    const higherMargin = calculateCompanyMetrics({ ...baseInputs, ebitdaMarginOverride: 0.35 });
+    expect(higherMargin.dcfEquityValue).toBeGreaterThan(lowerMargin.dcfEquityValue);
+  });
+
+  it("does not change reported (today's) ebitdaMargin when a projection override is set", () => {
+    const metrics = calculateCompanyMetrics({ ...baseInputs, ebitdaMarginOverride: 0.35 });
+    expect(metrics.ebitdaMargin).toBeCloseTo(baseInputs.ebitda / baseInputs.revenue, 6);
+  });
+
+  it("defaults to the perpetuity-growth terminal method when terminalMethod is omitted", () => {
+    const withDefault = calculateCompanyMetrics(baseInputs);
+    const withExplicitGrowth = calculateCompanyMetrics({ ...baseInputs, terminalMethod: "growth" });
+    expect(withDefault.dcfEquityValue).toBeCloseTo(withExplicitGrowth.dcfEquityValue, 6);
+  });
+
+  it("values the terminal value as exitMultiple x final-year EBITDA under the exit-multiple method", () => {
+    const metrics = calculateCompanyMetrics({
+      ...baseInputs,
+      terminalMethod: "exitMultiple",
+      exitMultiple: 10
+    });
+    const finalYearEbitda = metrics.projection[metrics.projection.length - 1].revenue * metrics.ebitdaMargin;
+    const expectedTerminalValue = 10 * finalYearEbitda;
+    const sumDiscountedFcf = metrics.projection.reduce((sum, p) => sum + p.discountedFcf, 0);
+    const expectedEnterpriseValue =
+      sumDiscountedFcf + expectedTerminalValue / Math.pow(1 + baseInputs.discountRate, metrics.projectionYears);
+    expect(metrics.dcfEnterpriseValue).toBeCloseTo(expectedEnterpriseValue, 2);
+  });
+
+  it("treats a missing exitMultiple under the exit-multiple method as a zero terminal value", () => {
+    const metrics = calculateCompanyMetrics({ ...baseInputs, terminalMethod: "exitMultiple" });
+    const sumDiscountedFcf = metrics.projection.reduce((sum, p) => sum + p.discountedFcf, 0);
+    expect(metrics.dcfEnterpriseValue).toBeCloseTo(sumDiscountedFcf, 2);
+  });
+});
+
 describe("money and percent formatters", () => {
   it("formats currency with no decimals", () => {
     expect(money(1234.56)).toBe("$1,235");

@@ -47,3 +47,35 @@ unit conventions, accounting concerns, trends, risks, and useful follow-up
 questions. Do not fabricate ratios when the required values are absent.
 `;
 }
+
+export function realEstateAnalysisPrompt(payload: unknown) {
+  return `
+Analyze the following real estate investment inputs and calculated metrics.
+
+DATA:
+${JSON.stringify(payload, null, 2)}
+
+Treat all supplied numbers as user-provided and potentially unaudited.
+Explain NOI, cap rate, DSCR, and cash-on-cash return in plain English, note
+what the simplified 5-year projection ignores (rent growth, taxes, selling
+costs, refinancing), and flag any inputs that look inconsistent (e.g. a DSCR
+below 1, negative cash flow).
+`;
+}
+
+export function wealthAnalysisPrompt(payload: unknown) {
+  return `
+Analyze the following personal financial and wealth-planning inputs and
+calculated projections.
+
+DATA:
+${JSON.stringify(payload, null, 2)}
+
+Treat all supplied numbers as user-provided and potentially unaudited. Explain
+the savings rate, emergency-fund target, and net-worth/retirement projections
+in plain English. Note the major assumptions and limitations of a simplified
+projection (no inflation adjustment beyond what's specified, no tax modeling,
+no market volatility). Do not provide individualized investment or retirement
+advice.
+`;
+}

@@ -7,6 +7,7 @@ import {
   percent,
   type CompanyInputs
 } from "@/lib/finance";
+import { saveReport } from "@/lib/reportsClient";
 
 const initial: CompanyInputs = {
   revenue: 100000000,
@@ -27,6 +28,8 @@ export default function CompanyAnalyzer() {
   const [report, setReport] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
 
   const metrics = useMemo(() => calculateCompanyMetrics(inputs), [inputs]);
 
@@ -54,6 +57,19 @@ export default function CompanyAnalyzer() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveMessage("");
+    const result = await saveReport({
+      title: company,
+      module: "company",
+      input: { company, inputs },
+      output: report
+    });
+    setSaveMessage(result.error ? result.error : "Saved to your reports.");
+    setSaving(false);
   }
 
   return (
@@ -122,8 +138,14 @@ export default function CompanyAnalyzer() {
         <button className="primary" onClick={analyze} disabled={loading}>
           {loading ? "Analyzing..." : "Generate AI investment report"}
         </button>
+        {report && (
+          <button className="secondary" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save report"}
+          </button>
+        )}
       </div>
       {error && <div className="error">{error}</div>}
+      {saveMessage && <div className="notice">{saveMessage}</div>}
       {report && <div className="report">{report}</div>}
       <p className="disclaimer">
         Simplified educational model. Net income is used as a rough cash-flow

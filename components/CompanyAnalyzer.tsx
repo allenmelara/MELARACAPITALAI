@@ -6,9 +6,11 @@ import {
   calculateCompanyMetrics,
   money,
   percent,
-  type CompanyInputs
+  type CompanyInputs,
+  type TerminalMethod
 } from "@/lib/finance";
 import { calculateComparableMetrics, averageEvToEbitda, type ComparableMetrics } from "@/lib/comparables";
+import { calculateKeyRatios, type KeyRatios } from "@/lib/ratios";
 import { parseStructuredCompanyReport } from "@/lib/structuredReport";
 import StructuredReport from "@/components/StructuredReport";
 import CompanyCharts from "@/components/CompanyCharts";
@@ -17,11 +19,27 @@ import CompanySearch, { type SelectedCompany } from "@/components/company/Compan
 import WorkflowStepper, { type WorkflowStep } from "@/components/company/WorkflowStepper";
 import SourceBadge, { type FieldSource } from "@/components/company/SourceBadge";
 import FinancialStatements from "@/components/company/FinancialStatements";
-import ImportProgress from "@/components/company/ImportProgress";
+import StagedProgress from "@/components/company/StagedProgress";
+import AdvancedSettings from "@/components/company/AdvancedSettings";
+import RatiosPanel from "@/components/company/RatiosPanel";
 import type { FinancialStatements as StatementsData, Filing } from "@/lib/secEdgar";
 import { saveReport } from "@/lib/reportsClient";
 
 type Comparable = ComparableMetrics & { ticker: string; name: string };
+
+const IMPORT_STAGES = [
+  "Resolving SEC filer",
+  "Fetching company facts",
+  "Parsing financial statements",
+  "Loading live market price"
+];
+
+const RESEARCH_STAGES = [
+  "Building DCF model",
+  "Benchmarking comparables",
+  "Computing key ratios",
+  "Drafting research report"
+];
 
 type CompanyIdentity = {
   ticker: string;
@@ -48,16 +66,6 @@ const FINANCIAL_FIELDS: Array<{ key: keyof CompanyInputs; label: string }> = [
   { key: "currentPrice", label: "Current share price" }
 ];
 
-const ASSUMPTION_FIELDS: Array<{ key: keyof CompanyInputs; label: string }> = [
-  { key: "growthRate", label: "Annual growth rate" },
-  { key: "discountRate", label: "Discount rate (WACC)" },
-  { key: "terminalGrowthRate", label: "Terminal growth rate" },
-  { key: "taxRate", label: "Tax rate" },
-  { key: "depreciationPct", label: "D&A (% of revenue)" },
-  { key: "capexPct", label: "Capex (% of revenue)" },
-  { key: "nwcChangePct", label: "Δ Net working capital (% of revenue)" }
-];
-
 const initialInputs: CompanyInputs = {
   revenue: 0,
   ebitda: 0,
@@ -72,7 +80,10 @@ const initialInputs: CompanyInputs = {
   taxRate: 0.21,
   depreciationPct: 0.03,
   capexPct: 0.04,
-  nwcChangePct: 0.01
+  nwcChangePct: 0.01,
+  projectionYears: 5,
+  terminalMethod: "growth",
+  exitMultiple: 8
 };
 
 export default function CompanyAnalyzer() {
@@ -93,14 +104,27 @@ export default function CompanyAnalyzer() {
   const [compsLoading, setCompsLoading] = useState(false);
   const [compsError, setCompsError] = useState("");
 
+  const [marginOverrideEnabled, setMarginOverrideEnabled] = useState(false);
+
   const [report, setReport] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [savedReportId, setSavedReportId] = useState<string | null>(null);
+  const [lastRatios, setLastRatios] = useState<KeyRatios | null>(null);
 
-  const metrics = useMemo(() => calculateCompanyMetrics(inputs), [inputs]);
+  // The margin override only takes effect while its toggle is on, so a
+  // stale/disabled value in `inputs` never silently changes the projection.
+  const effectiveInputs = useMemo(
+    () => (marginOverrideEnabled ? inputs : { ...inputs, ebitdaMarginOverride: undefined }),
+    [inputs, marginOverrideEnabled]
+  );
+  const metrics = useMemo(() => calculateCompanyMetrics(effectiveInputs), [effectiveInputs]);
+  const ratios = useMemo(
+    () => calculateKeyRatios(inputs, metrics, statements),
+    [inputs, metrics, statements]
+  );
   const compsAverageEvToEbitda = useMemo(() => averageEvToEbitda(comparables), [comparables]);
   const structuredReport = useMemo(
     () => (report ? parseStructuredCompanyReport(report) : null),
@@ -116,6 +140,22 @@ export default function CompanyAnalyzer() {
     setInputs((current) => ({ ...current, [key]: Number(raw) || 0 }));
     // A hand-edited value is no longer "as reported" — drop its provenance badge.
     setSourceNotes((current) => ({ ...current, [key]: undefined }));
+  }
+
+  function updateTerminalMethod(method: TerminalMethod) {
+    setInputs((current) => ({ ...current, terminalMethod: method }));
+  }
+
+  function toggleMarginOverride(enabled: boolean) {
+    setMarginOverrideEnabled(enabled);
+    // Seed the override with today's actual margin the first time it's enabled,
+    // so the field starts at a sensible value instead of zero.
+    if (enabled) {
+      setInputs((current) => ({
+        ...current,
+        ebitdaMarginOverride: current.ebitdaMarginOverride ?? metrics.ebitdaMargin
+      }));
+    }
   }
 
   async function loadCompany(selected: SelectedCompany) {
@@ -201,20 +241,24 @@ export default function CompanyAnalyzer() {
     if (!identity) return;
     setLoading(true);
     setError("");
+    setSaveMessage("");
+    setSavedReportId(null);
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "company",
-          payload: { company: identity.name, inputs, metrics, comparables }
+          payload: { company: identity.name, inputs, metrics, comparables, ratios }
         })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Analysis failed");
       setReport(data.report);
-      setSavedReportId(null);
-      setSaveMessage("");
+      setLastRatios(ratios);
+      // Auto-save immediately so the report and its AI chat are available
+      // right away, without the user needing a separate manual step.
+      await persistReport(data.report, ratios);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
@@ -222,23 +266,27 @@ export default function CompanyAnalyzer() {
     }
   }
 
-  async function handleSave() {
+  async function persistReport(reportText: string, ratiosUsed: KeyRatios) {
     if (!identity) return;
     setSaving(true);
-    setSaveMessage("");
     const result = await saveReport({
       title: identity.name,
       module: "company",
-      input: { company: identity.name, ticker: identity.ticker, inputs, comparables },
-      output: report
+      input: { company: identity.name, ticker: identity.ticker, inputs, comparables, ratios: ratiosUsed },
+      output: reportText
     });
     if (result.error) {
-      setSaveMessage(result.error);
+      setSaveMessage(`Report generated, but saving failed: ${result.error}`);
     } else {
-      setSaveMessage("Saved to your reports. Ask a follow-up question below.");
+      setSaveMessage("Saved automatically — ask a follow-up question below.");
       if (result.id) setSavedReportId(result.id);
     }
     setSaving(false);
+  }
+
+  function retrySave() {
+    if (!report || !lastRatios) return;
+    void persistReport(report, lastRatios);
   }
 
   function resetAll() {
@@ -253,9 +301,11 @@ export default function CompanyAnalyzer() {
     setDataMessage("");
     setComparables([]);
     setCompsInput("");
+    setMarginOverrideEnabled(false);
     setReport("");
     setSavedReportId(null);
     setSaveMessage("");
+    setLastRatios(null);
     setError("");
   }
 
@@ -320,6 +370,9 @@ export default function CompanyAnalyzer() {
             compsAverageEvToEbitda={compsAverageEvToEbitda}
             companyName={identity?.name ?? ""}
             onUpdate={update}
+            onTerminalMethodChange={updateTerminalMethod}
+            marginOverrideEnabled={marginOverrideEnabled}
+            onToggleMarginOverride={toggleMarginOverride}
           />
         )}
 
@@ -329,11 +382,12 @@ export default function CompanyAnalyzer() {
             error={error}
             report={report}
             structuredReport={structuredReport}
+            ratios={ratios}
             saving={saving}
             saveMessage={saveMessage}
             savedReportId={savedReportId}
             onAnalyze={analyze}
-            onSave={handleSave}
+            onRetrySave={retrySave}
           />
         )}
 
@@ -483,7 +537,14 @@ function StepFinancials({
         </button>
       </div>
 
-      {dataLoading && <ImportProgress done={false} />}
+      {dataLoading && (
+        <StagedProgress
+          stages={IMPORT_STAGES}
+          done={false}
+          activeLabel="Importing company data…"
+          doneLabel="Import complete"
+        />
+      )}
       {dataMessage && !dataError && !dataLoading && <div className="notice">{dataMessage}</div>}
       {dataError && <div className="error">{dataError}</div>}
 
@@ -561,7 +622,10 @@ function StepValuation({
   comparables,
   compsAverageEvToEbitda,
   companyName,
-  onUpdate
+  onUpdate,
+  onTerminalMethodChange,
+  marginOverrideEnabled,
+  onToggleMarginOverride
 }: {
   inputs: CompanyInputs;
   sourceNotes: Record<string, FieldSource>;
@@ -570,13 +634,17 @@ function StepValuation({
   compsAverageEvToEbitda: number | null;
   companyName: string;
   onUpdate: (key: keyof CompanyInputs, raw: string) => void;
+  onTerminalMethodChange: (method: TerminalMethod) => void;
+  marginOverrideEnabled: boolean;
+  onToggleMarginOverride: (enabled: boolean) => void;
 }) {
   return (
     <div className="step-body">
       <div className="step-heading">
-        <h2>Valuation &amp; assumptions</h2>
+        <h2>Valuation</h2>
         <p className="step-lede">
-          Tune the DCF drivers below — the implied value and multiples update live.
+          A DCF-implied value built from the data above, using sensible default assumptions. Open
+          Advanced settings only if you want to change them.
         </p>
       </div>
 
@@ -590,24 +658,6 @@ function StepValuation({
           <strong>{percent(Math.abs(metrics.upside))}</strong>
           <span className="verdict-vs">vs. current price {money(inputs.currentPrice)}</span>
         </div>
-      </div>
-
-      <h3 className="subsection-title">Model assumptions</h3>
-      <div className="form-grid">
-        {ASSUMPTION_FIELDS.map(({ key, label }) => (
-          <label key={key}>
-            <span className="field-label">
-              {label}
-              <SourceBadge status={sourceNotes[key]} />
-            </span>
-            <input
-              type="number"
-              step="0.001"
-              value={inputs[key]}
-              onChange={(e) => onUpdate(key, e.target.value)}
-            />
-          </label>
-        ))}
       </div>
 
       <div className="metrics">
@@ -628,11 +678,21 @@ function StepValuation({
 
       <CompanyCharts companyName={companyName} metrics={metrics} comparables={comparables} />
 
+      <AdvancedSettings
+        inputs={inputs}
+        sourceNotes={sourceNotes}
+        onUpdate={onUpdate}
+        onTerminalMethodChange={onTerminalMethodChange}
+        marginOverrideEnabled={marginOverrideEnabled}
+        onToggleMarginOverride={onToggleMarginOverride}
+        todaysMargin={metrics.ebitdaMargin}
+      />
+
       <p className="disclaimer">
-        Simplified educational model. The 5-year DCF projects unlevered free cash flow (EBITDA at
-        today&apos;s margin, less D&amp;A, tax-effected, plus D&amp;A back, less capex and
-        working-capital changes) using flat assumptions each year. Not a substitute for a full
-        three-statement model.
+        Simplified educational model. The DCF projects unlevered free cash flow (EBITDA at the
+        assumed margin, less D&amp;A, tax-effected, plus D&amp;A back, less capex and
+        working-capital changes) using flat assumptions each year over the projection period. Not a
+        substitute for a full three-statement model.
       </p>
     </div>
   );
@@ -643,45 +703,67 @@ function StepReport({
   error,
   report,
   structuredReport,
+  ratios,
   saving,
   saveMessage,
   savedReportId,
   onAnalyze,
-  onSave
+  onRetrySave
 }: {
   loading: boolean;
   error: string;
   report: string;
   structuredReport: ReturnType<typeof parseStructuredCompanyReport>;
+  ratios: KeyRatios;
   saving: boolean;
   saveMessage: string;
   savedReportId: string | null;
   onAnalyze: () => void;
-  onSave: () => void;
+  onRetrySave: () => void;
 }) {
+  const saveFailed = Boolean(saveMessage) && !savedReportId;
   return (
     <div className="step-body">
       <div className="step-heading">
-        <h2>Investment report</h2>
+        <h2>Institutional research</h2>
         <p className="step-lede">
-          Generate an AI investment-committee report grounded in the data and assumptions above, then
-          save it and ask follow-up questions.
+          One click builds the DCF, comparable-company analysis, key financial ratios, and an
+          executive summary into a single research report — then saves it so you can ask
+          follow-up questions right away.
         </p>
       </div>
 
       <div className="actions">
         <button className="primary" onClick={onAnalyze} disabled={loading}>
-          {loading ? "Analyzing…" : report ? "Regenerate report" : "Generate report"}
+          {loading ? "Generating…" : report ? "Regenerate research" : "Generate Research"}
         </button>
-        {report && (
-          <button className="secondary" onClick={onSave} disabled={saving || Boolean(savedReportId)}>
-            {saving ? "Saving…" : savedReportId ? "Saved" : "Save report"}
+        {saveFailed && (
+          <button className="secondary" onClick={onRetrySave} disabled={saving}>
+            {saving ? "Retrying…" : "Retry save"}
           </button>
         )}
       </div>
 
+      {loading && (
+        <StagedProgress
+          stages={RESEARCH_STAGES}
+          done={false}
+          activeLabel="Generating institutional research…"
+          doneLabel="Research complete"
+        />
+      )}
+
       {error && <div className="error">{error}</div>}
-      {saveMessage && <div className="notice">{saveMessage}</div>}
+      {saveMessage && (
+        <div className={saveFailed ? "error" : "notice"}>{saveMessage}</div>
+      )}
+
+      {report && (
+        <>
+          <h3 className="subsection-title">Key financial ratios</h3>
+          <RatiosPanel ratios={ratios} />
+        </>
+      )}
 
       {report &&
         (structuredReport ? (

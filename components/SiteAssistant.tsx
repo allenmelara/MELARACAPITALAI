@@ -1,23 +1,14 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { SUGGESTED_QUESTIONS, contextFromPath } from "@/lib/assistantSuggestions";
 
 type Message = { role: "user" | "assistant"; content: string };
 
 export default function SiteAssistant() {
-  return (
-    <Suspense fallback={null}>
-      <SiteAssistantInner />
-    </Suspense>
-  );
-}
-
-function SiteAssistantInner() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const context = contextFromPath(pathname, searchParams.get("module"));
+  const context = contextFromPath(pathname);
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);

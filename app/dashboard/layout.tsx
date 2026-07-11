@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
-import { signOutAction } from "@/app/auth/actions";
+import { getPlan } from "@/lib/profile";
+import DashboardSidebar from "@/components/DashboardSidebar";
 
 export default async function DashboardLayout({
   children
@@ -12,32 +12,14 @@ export default async function DashboardLayout({
   if (!user) {
     redirect("/login");
   }
+  const plan = await getPlan();
 
   return (
-    <div className="shell">
-      <nav className="nav">
-        <Link href="/" className="brand">
-          Melara Capital <span>AI</span>
-        </Link>
-        <div className="nav-actions">
-          <Link href="/dashboard" className="nav-note">
-            Workspace
-          </Link>
-          <Link href="/dashboard/reports" className="nav-note">
-            Saved reports
-          </Link>
-          <Link href="/pricing" className="nav-note">
-            Billing
-          </Link>
-          <span className="nav-note">{user.email}</span>
-          <form action={signOutAction}>
-            <button className="secondary" type="submit">
-              Sign out
-            </button>
-          </form>
-        </div>
-      </nav>
-      <main className="main">{children}</main>
+    <div className="dash-shell">
+      <DashboardSidebar email={user.email ?? ""} plan={plan} />
+      <main className="dash-content">
+        <div className="dash-content-inner">{children}</div>
+      </main>
     </div>
   );
 }

@@ -1,11 +1,13 @@
 export type AssistantContext =
   | "landing"
   | "pricing"
+  | "dashboard:overview"
   | "dashboard:company"
   | "dashboard:document"
   | "dashboard:real_estate"
   | "dashboard:wealth"
   | "dashboard:reports"
+  | "dashboard:settings"
   | "general";
 
 export const SUGGESTED_QUESTIONS: Record<AssistantContext, string[]> = {
@@ -18,6 +20,11 @@ export const SUGGESTED_QUESTIONS: Record<AssistantContext, string[]> = {
     "What's the difference between Free, Pro, and Business?",
     "Can I cancel anytime?",
     "What happens if I hit my monthly report limit?"
+  ],
+  "dashboard:overview": [
+    "How do I get started?",
+    "What's the difference between the modules?",
+    "Where can I see my past reports?"
   ],
   "dashboard:company": [
     "What is EV/EBITDA?",
@@ -36,6 +43,11 @@ export const SUGGESTED_QUESTIONS: Record<AssistantContext, string[]> = {
     "How do I export a report as a PDF?",
     "Can I chat about a specific report?",
     "How do I rename or delete a report?"
+  ],
+  "dashboard:settings": [
+    "How do I upgrade my plan?",
+    "How do I cancel my subscription?",
+    "How do I change my email or password?"
   ],
   general: [
     "What can Melara Capital AI do?",
@@ -76,15 +88,15 @@ export const REPORT_CHAT_SUGGESTIONS: Record<ReportChatModule, string[]> = {
   ]
 };
 
-export function contextFromPath(pathname: string, module: string | null): AssistantContext {
+export function contextFromPath(pathname: string): AssistantContext {
   if (pathname === "/") return "landing";
   if (pathname.startsWith("/pricing")) return "pricing";
   if (pathname.startsWith("/dashboard/reports")) return "dashboard:reports";
-  if (pathname.startsWith("/dashboard")) {
-    if (module === "document") return "dashboard:document";
-    if (module === "real_estate") return "dashboard:real_estate";
-    if (module === "wealth") return "dashboard:wealth";
-    return "dashboard:company";
-  }
+  if (pathname.startsWith("/dashboard/settings")) return "dashboard:settings";
+  if (pathname.startsWith("/dashboard/company")) return "dashboard:company";
+  if (pathname.startsWith("/dashboard/documents")) return "dashboard:document";
+  if (pathname.startsWith("/dashboard/real-estate")) return "dashboard:real_estate";
+  if (pathname.startsWith("/dashboard/wealth")) return "dashboard:wealth";
+  if (pathname === "/dashboard") return "dashboard:overview";
   return "general";
 }

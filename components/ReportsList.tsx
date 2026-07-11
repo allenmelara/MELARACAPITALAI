@@ -98,7 +98,7 @@ function ExpandedReport({ report }: { report: Report }) {
   return (
     <div className="expanded-report">
       {structured ? <StructuredReport data={structured} /> : <div className="report">{report.output}</div>}
-      <ReportChat reportId={report.id} />
+      <ReportChat reportId={report.id} module={report.module} />
     </div>
   );
 }

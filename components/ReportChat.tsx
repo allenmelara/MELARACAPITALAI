@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from "react";
 import type { ChatMessage } from "@/lib/reportChat";
+import { REPORT_CHAT_SUGGESTIONS, type ReportChatModule } from "@/lib/assistantSuggestions";
 
-export default function ReportChat({ reportId }: { reportId: string }) {
+export default function ReportChat({
+  reportId,
+  module
+}: {
+  reportId: string;
+  module: ReportChatModule;
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
@@ -25,9 +32,9 @@ export default function ReportChat({ reportId }: { reportId: string }) {
     };
   }, [reportId]);
 
-  async function send() {
-    if (!input.trim() || sending) return;
-    const message = input.trim();
+  async function send(text?: string) {
+    const message = (text ?? input).trim();
+    if (!message || sending) return;
     setInput("");
     setSending(true);
     setError("");
@@ -56,12 +63,21 @@ export default function ReportChat({ reportId }: { reportId: string }) {
       ) : (
         <div className="chat-messages">
           {messages.length === 0 && (
-            <p className="disclaimer">No messages yet — ask a follow-up question below.</p>
+            <p className="disclaimer">No messages yet — ask a follow-up question below, or try one of these:</p>
           )}
           {messages.map((m) => (
             <div key={m.id} className={`chat-bubble chat-${m.role}`}>
               {m.content}
             </div>
+          ))}
+        </div>
+      )}
+      {!loading && messages.length === 0 && (
+        <div className="assistant-chips">
+          {REPORT_CHAT_SUGGESTIONS[module].map((q) => (
+            <button key={q} className="assistant-chip" onClick={() => send(q)} disabled={sending}>
+              {q}
+            </button>
           ))}
         </div>
       )}
@@ -74,7 +90,7 @@ export default function ReportChat({ reportId }: { reportId: string }) {
           onKeyDown={(e) => e.key === "Enter" && send()}
           disabled={sending}
         />
-        <button className="secondary" onClick={send} disabled={sending}>
+        <button className="secondary" onClick={() => send()} disabled={sending}>
           {sending ? "Sending..." : "Send"}
         </button>
       </div>

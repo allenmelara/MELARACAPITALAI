@@ -449,3 +449,59 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
 .recommendation-sell .recommendation-badge { color:var(--danger); background:rgba(255,143,143,.12); border-color:rgba(255,143,143,.4); }
 .recommendation-rationale { margin:12px 0 8px; line-height:1.6; }
 .recommendation-card .disclaimer { margin-top:0; }
+
+/* Usage progress bars (pricing page, settings, documents, usage analytics) */
+.usage-bar-block { display:flex; flex-direction:column; gap:6px; margin:14px 0; }
+.usage-bar-label { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); }
+.usage-bar-track { height:8px; border-radius:999px; background:#09130e; border:1px solid var(--border); overflow:hidden; }
+.usage-bar-fill { height:100%; background:var(--accent); border-radius:999px; transition:width .2s ease; }
+.usage-bar-grid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:20px; }
+@media (max-width: 820px) { .usage-bar-grid { grid-template-columns:1fr; } }
+
+/* SEC autofill / Advanced Settings upsell notices */
+.upsell-notice { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.upsell-link { color:var(--accent); font-weight:700; text-decoration:underline; }
+.upsell-link:hover { opacity:.85; }
+.advanced-settings-upsell {
+  display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; margin-top:8px;
+  padding:18px 20px; border-radius:16px; border:1px solid var(--border);
+  background:linear-gradient(180deg, var(--panel2), var(--panel));
+}
+.advanced-settings-upsell svg { color:var(--accent); flex-shrink:0; margin-top:3px; }
+.advanced-settings-upsell strong { display:block; margin-bottom:4px; }
+.advanced-settings-upsell p { margin:0; color:var(--muted); font-size:13px; line-height:1.5; }
+.advanced-settings-upsell .primary { margin-left:auto; white-space:nowrap; }
+
+/* Pricing page: feature lists, Most Popular badge, value statement, comparison table */
+.pricing-card { position:relative; display:flex; flex-direction:column; gap:14px; }
+.pricing-card-popular { border-color:rgba(105,229,155,.5); box-shadow:0 0 0 1px var(--accent) inset; }
+.pricing-popular-badge {
+  position:absolute; top:-13px; left:24px; display:inline-flex; align-items:center; gap:5px;
+  background:var(--accent); color:#051008; font-size:11px; font-weight:800; letter-spacing:.04em;
+  text-transform:uppercase; padding:5px 12px; border-radius:999px;
+}
+.pricing-feature-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; flex:1; }
+.pricing-feature-list li { display:flex; align-items:flex-start; gap:9px; font-size:14px; line-height:1.4; }
+.pricing-feature-check { color:var(--accent); flex-shrink:0; margin-top:2px; }
+.pricing-coming-soon {
+  display:inline-block; margin-left:8px; font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.03em; color:var(--muted); border:1px solid var(--border); border-radius:999px; padding:2px 8px;
+}
+.pricing-value-statement {
+  margin:0; padding:10px 14px; border-radius:12px; background:rgba(105,229,155,.08);
+  border:1px solid rgba(105,229,155,.3); color:var(--accent); font-size:13px; font-weight:700; text-align:center;
+}
+.pricing-comparison { margin-top:56px; }
+.pricing-comparison h2 { font-size:clamp(24px, 3vw, 32px); letter-spacing:-.02em; margin:0 0 20px; }
+.pricing-comparison-scroll { overflow-x:auto; border:1px solid var(--border); border-radius:16px; }
+.pricing-comparison-table { width:100%; border-collapse:collapse; font-size:14px; min-width:560px; }
+.pricing-comparison-table th, .pricing-comparison-table td { padding:12px 18px; text-align:left; white-space:nowrap; }
+.pricing-comparison-table thead th {
+  color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.04em; font-weight:600;
+  background:#0c1712; border-bottom:1px solid var(--border);
+}
+.pricing-comparison-table thead th:not(:first-child), .pricing-comparison-table td:not(:first-child) { text-align:center; }
+.pricing-comparison-table tbody tr:not(:last-child) td { border-bottom:1px solid rgba(41,64,51,.5); }
+.pricing-comparison-yes { color:var(--accent); }
+.pricing-comparison-no { color:var(--muted); opacity:.5; }
+@media (max-width: 560px) { .pricing-comparison-table td, .pricing-comparison-table th { padding:10px 12px; } }

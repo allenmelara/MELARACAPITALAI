@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUser } from "@/lib/supabase/server";
+import { getPlan } from "@/lib/profile";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { logError, logWarn } from "@/lib/logger";
 import {
@@ -38,6 +39,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Enter a valid ticker symbol." }, { status: 400 });
   }
   const ticker = parsed.data.toUpperCase();
+
+  // "SEC autofill" (the subject company's own auto-import) is Pro+. Fetching
+  // a comparable company's multiples is a separate, free-tier feature and
+  // bypasses this gate — the caller marks it via ?context=comparable.
+  const isComparable = searchParams.get("context") === "comparable";
+  if (!isComparable) {
+    const plan = await getPlan();
+    if (plan === "free") {
+      return NextResponse.json(
+        {
+          error: "Autofill from SEC filings is a Pro feature. Upgrade to skip manual entry, or continue and enter financials yourself.",
+          upgradeRequired: true
+        },
+        { status: 402 }
+      );
+    }
+  }
 
   try {
     const resolved = await resolveTickerToCik(ticker);

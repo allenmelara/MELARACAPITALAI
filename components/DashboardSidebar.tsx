@@ -12,6 +12,7 @@ import {
   FolderOpen,
   CreditCard,
   Settings,
+  BarChart3,
   ChevronsLeft,
   ChevronsRight
 } from "lucide-react";
@@ -28,6 +29,11 @@ const NAV_ITEMS = [
   { href: "/pricing", label: "Billing", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings }
 ];
+
+// Business-plan only — usage analytics needs no infrastructure beyond the
+// existing usage_events log, but the page itself redirects non-Business
+// plans, so only show the link once it's actually reachable.
+const BUSINESS_NAV_ITEM = { href: "/dashboard/usage", label: "Usage Analytics", icon: BarChart3, exact: false };
 
 const STORAGE_KEY = "melara:sidebar-collapsed";
 
@@ -64,7 +70,10 @@ export default function DashboardSidebar({ email, plan }: { email: string; plan:
       </div>
 
       <nav className="dash-nav">
-        {NAV_ITEMS.map((item) => {
+        {(plan === "business"
+          ? [...NAV_ITEMS.slice(0, 6), BUSINESS_NAV_ITEM, ...NAV_ITEMS.slice(6)]
+          : NAV_ITEMS
+        ).map((item) => {
           const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
           const Icon = item.icon;
           return (

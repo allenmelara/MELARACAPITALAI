@@ -193,10 +193,14 @@ overview, financial analysis, DCF valuation, ratio analysis, comparables,
 bull/bear case) with charts, can be saved, exported as a PDF, and have their
 own dedicated chat that already knows the company, its filings, the
 assumptions, and the generated report — no re-uploading needed. Plans are
-Free (${limits.free.reportsPerMonth} AI reports/month,
-${limits.free.savedReports} saved reports), Pro (${limits.pro.reportsPerMonth}
-reports/month, unlimited saved reports), and Business (unlimited both) — all
-plans include every module.
+metered by AI Research Credits (spent on company report generation) rather
+than generic usage counts — Free (${limits.free.aiResearchCredits} AI Research
+Credits/month, ${limits.free.chatMessagesPerMonth} chat messages,
+${limits.free.documentUploadsPerMonth} document uploads), Pro
+(${limits.pro.aiResearchCredits} AI Research Credits/month, unlimited chat and
+document uploads, SEC autofill, advanced valuation assumptions), and Business
+(unlimited AI Research Credits) — saved reports are unlimited on every plan,
+and the real estate and wealth calculators are never metered.
 
 CURRENT PAGE CONTEXT: ${context}
 
@@ -236,12 +240,12 @@ export type StructuredCompanyReport = {
   ratioAnalysis?: string;
 };
 
-export function documentAnalysisPrompt(text: string) {
+export function documentAnalysisPrompt(text: string, maxChars: number) {
   return `
 Analyze the following financial document or pasted financial data.
 
 DOCUMENT:
-${text.slice(0, 60000)}
+${text.slice(0, maxChars)}
 
 Extract only information supported by the document. Identify missing periods,
 unit conventions, accounting concerns, trends, risks, and useful follow-up

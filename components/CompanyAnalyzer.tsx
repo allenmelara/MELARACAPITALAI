@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, RefreshCw, RotateCcw } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, ArrowRight, Lock, RefreshCw, RotateCcw } from "lucide-react";
+import type { Plan } from "@/lib/profile";
 import {
   calculateCompanyMetrics,
   money,
@@ -86,7 +88,7 @@ const initialInputs: CompanyInputs = {
   exitMultiple: 8
 };
 
-export default function CompanyAnalyzer() {
+export default function CompanyAnalyzer({ plan }: { plan: Plan }) {
   const [step, setStep] = useState(1);
   const [furthest, setFurthest] = useState(1);
 
@@ -169,10 +171,20 @@ export default function CompanyAnalyzer() {
     setIdentity({ ticker: selected.ticker, name: selected.name, exchange: null, industry: null, logo: null });
     setStatements(null);
     setFilings([]);
-    setDataLoading(true);
     setDataError("");
     setDataMessage("");
 
+    // SEC autofill is Pro+. Skip the network call entirely for free plans
+    // (the API would reject it anyway) — the identity above is enough to let
+    // Free users continue and enter financials manually.
+    if (plan === "free") {
+      setDataMessage(
+        "You're on the Free plan — enter financials manually below, or upgrade to Pro to auto-import from SEC filings."
+      );
+      return;
+    }
+
+    setDataLoading(true);
     try {
       const response = await fetch(`/api/company-lookup?ticker=${encodeURIComponent(selected.ticker)}`);
       const data = await response.json();
@@ -219,7 +231,11 @@ export default function CompanyAnalyzer() {
     try {
       const results = await Promise.all(
         tickers.map(async (t) => {
-          const response = await fetch(`/api/company-lookup?ticker=${encodeURIComponent(t)}`);
+          // Comparable-company lookups stay free on every plan — only the
+          // subject company's own SEC autofill is Pro-gated.
+          const response = await fetch(
+            `/api/company-lookup?ticker=${encodeURIComponent(t)}&context=comparable`
+          );
           const data = await response.json();
           if (!response.ok) throw new Error(`${t}: ${data.error || "lookup failed"}`);
           return {
@@ -356,8 +372,10 @@ export default function CompanyAnalyzer() {
         {step === 1 && (
           <StepCompany
             identity={identity}
+            plan={plan}
             dataLoading={dataLoading}
             dataError={dataError}
+            dataMessage={dataMessage}
             onSelect={loadCompany}
           />
         )}
@@ -368,6 +386,7 @@ export default function CompanyAnalyzer() {
             sourceNotes={sourceNotes}
             statements={statements}
             filings={filings}
+            plan={plan}
             dataLoading={dataLoading}
             dataError={dataError}
             dataMessage={dataMessage}
@@ -391,6 +410,7 @@ export default function CompanyAnalyzer() {
             compsAverageEvToEbitda={compsAverageEvToEbitda}
             companyName={identity?.name ?? ""}
             statements={statements}
+            plan={plan}
             onUpdate={update}
             onTerminalMethodChange={updateTerminalMethod}
             marginOverrideEnabled={marginOverrideEnabled}
@@ -460,13 +480,17 @@ function IdentityBar({ identity }: { identity: CompanyIdentity }) {
 
 function StepCompany({
   identity,
+  plan,
   dataLoading,
   dataError,
+  dataMessage,
   onSelect
 }: {
   identity: CompanyIdentity | null;
+  plan: Plan;
   dataLoading: boolean;
   dataError: string;
+  dataMessage: string;
   onSelect: (company: SelectedCompany) => void;
 }) {
   return (
@@ -474,8 +498,9 @@ function StepCompany({
       <div className="step-heading">
         <h2>Select a company</h2>
         <p className="step-lede">
-          Search by name or enter a ticker. We&apos;ll resolve it to the SEC filer and pull its latest
-          financials automatically.
+          {plan === "free"
+            ? "Search by name or enter a ticker. On the Free plan you'll enter financials manually in the next step — upgrade to Pro to auto-import from SEC filings."
+            : "Search by name or enter a ticker. We'll resolve it to the SEC filer and pull its latest financials automatically."}
         </p>
       </div>
 
@@ -502,6 +527,14 @@ function StepCompany({
           </span>
         </div>
       )}
+      {plan === "free" && dataMessage && (
+        <div className="notice upsell-notice">
+          <Lock size={14} /> {dataMessage}{" "}
+          <Link href="/pricing" className="upsell-link">
+            Upgrade to Pro
+          </Link>
+        </div>
+      )}
       {dataError && (
         <div className="error">
           {dataError} — you can still continue and enter the financials manually.
@@ -516,6 +549,7 @@ function StepFinancials({
   sourceNotes,
   statements,
   filings,
+  plan,
   dataLoading,
   dataError,
   dataMessage,
@@ -532,6 +566,7 @@ function StepFinancials({
   sourceNotes: Record<string, FieldSource>;
   statements: StatementsData | null;
   filings: Filing[];
+  plan: Plan;
   dataLoading: boolean;
   dataError: string;
   dataMessage: string;
@@ -550,13 +585,20 @@ function StepFinancials({
         <div>
           <h2>Financial data</h2>
           <p className="step-lede">
-            Automatically imported from SEC filings — statements, filing dates, and headline figures.
-            Each key input is tagged with its source; review anything marked for manual entry.
+            {plan === "free"
+              ? "Enter the company's key financials manually below. Upgrade to Pro to auto-import statements, filing dates, and headline figures from SEC filings."
+              : "Automatically imported from SEC filings — statements, filing dates, and headline figures. Each key input is tagged with its source; review anything marked for manual entry."}
           </p>
         </div>
-        <button className="secondary step-refetch" onClick={onRefetch} disabled={dataLoading}>
-          <RefreshCw size={15} className={dataLoading ? "spin" : ""} /> {dataLoading ? "Fetching…" : "Re-fetch"}
-        </button>
+        {plan === "free" ? (
+          <Link href="/pricing" className="secondary step-refetch upsell-link">
+            <Lock size={15} /> Upgrade to Pro
+          </Link>
+        ) : (
+          <button className="secondary step-refetch" onClick={onRefetch} disabled={dataLoading}>
+            <RefreshCw size={15} className={dataLoading ? "spin" : ""} /> {dataLoading ? "Fetching…" : "Re-fetch"}
+          </button>
+        )}
       </div>
 
       {dataLoading && (
@@ -567,7 +609,15 @@ function StepFinancials({
           doneLabel="Import complete"
         />
       )}
-      {dataMessage && !dataError && !dataLoading && <div className="notice">{dataMessage}</div>}
+      {plan === "free" && dataMessage && (
+        <div className="notice upsell-notice">
+          <Lock size={14} /> {dataMessage}{" "}
+          <Link href="/pricing" className="upsell-link">
+            Upgrade to Pro
+          </Link>
+        </div>
+      )}
+      {plan !== "free" && dataMessage && !dataError && !dataLoading && <div className="notice">{dataMessage}</div>}
       {dataError && <div className="error">{dataError}</div>}
 
       <h3 className="subsection-title">Key inputs</h3>
@@ -645,6 +695,7 @@ function StepValuation({
   compsAverageEvToEbitda,
   companyName,
   statements,
+  plan,
   onUpdate,
   onTerminalMethodChange,
   marginOverrideEnabled,
@@ -657,6 +708,7 @@ function StepValuation({
   compsAverageEvToEbitda: number | null;
   companyName: string;
   statements: StatementsData | null;
+  plan: Plan;
   onUpdate: (key: keyof CompanyInputs, raw: string) => void;
   onTerminalMethodChange: (method: TerminalMethod) => void;
   marginOverrideEnabled: boolean;
@@ -702,15 +754,31 @@ function StepValuation({
 
       <CompanyCharts companyName={companyName} metrics={metrics} comparables={comparables} statements={statements} />
 
-      <AdvancedSettings
-        inputs={inputs}
-        sourceNotes={sourceNotes}
-        onUpdate={onUpdate}
-        onTerminalMethodChange={onTerminalMethodChange}
-        marginOverrideEnabled={marginOverrideEnabled}
-        onToggleMarginOverride={onToggleMarginOverride}
-        todaysMargin={metrics.ebitdaMargin}
-      />
+      {plan === "free" ? (
+        <div className="advanced-settings-upsell">
+          <Lock size={16} />
+          <div>
+            <strong>Advanced valuation assumptions are a Pro feature.</strong>
+            <p>
+              Customize WACC, terminal value method, projection period, and margin assumptions
+              instead of the sensible defaults above.
+            </p>
+          </div>
+          <Link href="/pricing" className="primary upsell-link">
+            Upgrade to Pro
+          </Link>
+        </div>
+      ) : (
+        <AdvancedSettings
+          inputs={inputs}
+          sourceNotes={sourceNotes}
+          onUpdate={onUpdate}
+          onTerminalMethodChange={onTerminalMethodChange}
+          marginOverrideEnabled={marginOverrideEnabled}
+          onToggleMarginOverride={onToggleMarginOverride}
+          todaysMargin={metrics.ebitdaMargin}
+        />
+      )}
 
       <p className="disclaimer">
         Simplified educational model. The DCF projects unlevered free cash flow (EBITDA at the

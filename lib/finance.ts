@@ -29,6 +29,12 @@ export function calculateCompanyMetrics(input: CompanyInputs) {
   let revenue = input.revenue;
   let pv = 0;
   let unleveredFcf = 0;
+  const projection: Array<{
+    year: number;
+    revenue: number;
+    unleveredFcf: number;
+    discountedFcf: number;
+  }> = [];
   for (let year = 1; year <= 5; year++) {
     revenue *= 1 + input.growthRate;
     const ebitda = revenue * ebitdaMargin;
@@ -38,7 +44,9 @@ export function calculateCompanyMetrics(input: CompanyInputs) {
     const capex = revenue * input.capexPct;
     const nwcChange = revenue * input.nwcChangePct;
     unleveredFcf = nopat + depreciation - capex - nwcChange;
-    pv += unleveredFcf / Math.pow(1 + input.discountRate, year);
+    const discountedFcf = unleveredFcf / Math.pow(1 + input.discountRate, year);
+    pv += discountedFcf;
+    projection.push({ year, revenue, unleveredFcf, discountedFcf });
   }
 
   const terminalValue =
@@ -65,7 +73,8 @@ export function calculateCompanyMetrics(input: CompanyInputs) {
     upside:
       input.currentPrice > 0
         ? impliedSharePrice / input.currentPrice - 1
-        : 0
+        : 0,
+    projection
   };
 }
 

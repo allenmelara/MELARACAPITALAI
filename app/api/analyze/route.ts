@@ -6,12 +6,13 @@ import {
   companyAnalysisPrompt,
   documentAnalysisPrompt,
   realEstateAnalysisPrompt,
-  wealthAnalysisPrompt
+  wealthAnalysisPrompt,
+  INVESTMENT_REPORT_TOOL
 } from "@/lib/prompts";
 import { getUser } from "@/lib/supabase/server";
 import { getPlan } from "@/lib/profile";
 import { PLAN_LIMITS } from "@/lib/limits";
-import { countAnalyzeUsageSince, recordAnalyzeUsage, startOfCurrentMonthIso } from "@/lib/usage";
+import { countUsageSince, recordUsage, startOfCurrentMonthIso } from "@/lib/usage";
 import { logError, logWarn } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rateLimit";
 
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
     }
 
     const plan = await getPlan();
-    const usedThisMonth = await countAnalyzeUsageSince(startOfCurrentMonthIso());
+    const usedThisMonth = await countUsageSince("analyze", startOfCurrentMonthIso());
     if (usedThisMonth >= PLAN_LIMITS[plan].reportsPerMonth) {
       return NextResponse.json(
         { error: `You've reached your ${plan} plan's monthly report limit. Upgrade for more.` },
@@ -85,20 +86,32 @@ export async function POST(request: Request) {
       apiKey: process.env.ANTHROPIC_API_KEY
     });
 
+    const isCompanyMode = parsed.data.mode === "company";
+
     const message = await anthropic.messages.create({
       model: process.env.CLAUDE_MODEL || "claude-sonnet-5",
       max_tokens: 5000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: prompt }]
+      messages: [{ role: "user", content: prompt }],
+      ...(isCompanyMode
+        ? {
+            tools: [INVESTMENT_REPORT_TOOL],
+            tool_choice: { type: "tool" as const, name: INVESTMENT_REPORT_TOOL.name }
+          }
+        : {})
     });
 
-    const report = message.content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join("\n");
+    const report = isCompanyMode
+      ? JSON.stringify(
+          message.content.find((block) => block.type === "tool_use")?.input ?? {}
+        )
+      : message.content
+          .filter((block) => block.type === "text")
+          .map((block) => block.text)
+          .join("\n");
 
     try {
-      await recordAnalyzeUsage(user.id);
+      await recordUsage(user.id, "analyze");
     } catch (usageError) {
       logWarn("analyze.recordUsage", usageError);
     }

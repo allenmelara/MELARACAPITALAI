@@ -25,6 +25,17 @@ export async function listReports(): Promise<Report[]> {
   return data ?? [];
 }
 
+export async function getReport(id: string): Promise<Report | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("reports")
+    .select("id, title, module, input, output, created_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function countReportsSince(sinceIso: string): Promise<number> {
   const supabase = await createClient();
   const { count, error } = await supabase

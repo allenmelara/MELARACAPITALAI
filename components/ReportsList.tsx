@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import type { Report } from "@/lib/reports";
+import { parseStructuredCompanyReport } from "@/lib/structuredReport";
+import StructuredReport from "@/components/StructuredReport";
+import ReportChat from "@/components/ReportChat";
 
 export default function ReportsList({ initialReports }: { initialReports: Report[] }) {
   const [reports, setReports] = useState(initialReports);
@@ -72,6 +75,9 @@ export default function ReportsList({ initialReports }: { initialReports: Report
               </span>
             </button>
             <div className="report-row-actions">
+              <a className="secondary" href={`/api/reports/${r.id}/export/pdf`}>
+                Download PDF
+              </a>
               <button className="secondary" disabled={busyId === r.id} onClick={() => rename(r.id, r.title)}>
                 Rename
               </button>
@@ -79,10 +85,20 @@ export default function ReportsList({ initialReports }: { initialReports: Report
                 Delete
               </button>
             </div>
-            {expandedId === r.id && <div className="report">{r.output}</div>}
+            {expandedId === r.id && <ExpandedReport report={r} />}
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function ExpandedReport({ report }: { report: Report }) {
+  const structured = parseStructuredCompanyReport(report.output);
+  return (
+    <div className="expanded-report">
+      {structured ? <StructuredReport data={structured} /> : <div className="report">{report.output}</div>}
+      <ReportChat reportId={report.id} />
     </div>
   );
 }

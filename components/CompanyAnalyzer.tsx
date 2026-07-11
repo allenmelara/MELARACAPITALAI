@@ -7,7 +7,13 @@ import {
   percent,
   type CompanyInputs
 } from "@/lib/finance";
+import { calculateComparableMetrics, averageEvToEbitda, type ComparableMetrics } from "@/lib/comparables";
+import { parseStructuredCompanyReport } from "@/lib/structuredReport";
+import StructuredReport from "@/components/StructuredReport";
+import CompanyCharts from "@/components/CompanyCharts";
 import { saveReport } from "@/lib/reportsClient";
+
+type Comparable = ComparableMetrics & { ticker: string; name: string };
 
 const FIELD_LABELS: Record<keyof CompanyInputs, string> = {
   revenue: "Revenue",
@@ -55,8 +61,17 @@ export default function CompanyAnalyzer() {
   const [autofillLoading, setAutofillLoading] = useState(false);
   const [autofillMessage, setAutofillMessage] = useState("");
   const [autofillError, setAutofillError] = useState("");
+  const [compsInput, setCompsInput] = useState("");
+  const [comparables, setComparables] = useState<Comparable[]>([]);
+  const [compsLoading, setCompsLoading] = useState(false);
+  const [compsError, setCompsError] = useState("");
 
   const metrics = useMemo(() => calculateCompanyMetrics(inputs), [inputs]);
+  const compsAverageEvToEbitda = useMemo(() => averageEvToEbitda(comparables), [comparables]);
+  const structuredReport = useMemo(
+    () => (report ? parseStructuredCompanyReport(report) : null),
+    [report]
+  );
 
   function update(key: keyof CompanyInputs, raw: string) {
     setInputs((current) => ({ ...current, [key]: Number(raw) || 0 }));
@@ -96,6 +111,39 @@ export default function CompanyAnalyzer() {
     }
   }
 
+  async function fetchComparables() {
+    const tickers = compsInput
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+    if (tickers.length === 0) {
+      setCompsError("Enter 1-4 comma-separated ticker symbols.");
+      return;
+    }
+    setCompsLoading(true);
+    setCompsError("");
+    try {
+      const results = await Promise.all(
+        tickers.map(async (t) => {
+          const response = await fetch(`/api/company-lookup?ticker=${encodeURIComponent(t)}`);
+          const data = await response.json();
+          if (!response.ok) throw new Error(`${t}: ${data.error || "lookup failed"}`);
+          return {
+            ticker: data.company.ticker as string,
+            name: data.company.name as string,
+            ...calculateComparableMetrics(data.inputs)
+          };
+        })
+      );
+      setComparables(results);
+    } catch (err) {
+      setCompsError(err instanceof Error ? err.message : "Failed to fetch comparables");
+    } finally {
+      setCompsLoading(false);
+    }
+  }
+
   async function analyze() {
     setLoading(true);
     setError("");
@@ -105,7 +153,7 @@ export default function CompanyAnalyzer() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "company",
-          payload: { company, inputs, metrics }
+          payload: { company, inputs, metrics, comparables }
         })
       });
       const data = await response.json();
@@ -124,7 +172,7 @@ export default function CompanyAnalyzer() {
     const result = await saveReport({
       title: company,
       module: "company",
-      input: { company, inputs },
+      input: { company, inputs, comparables },
       output: report
     });
     setSaveMessage(result.error ? result.error : "Saved to your reports.");
@@ -151,6 +199,40 @@ export default function CompanyAnalyzer() {
       </div>
       {autofillError && <div className="error">{autofillError}</div>}
       {autofillMessage && <div className="notice">{autofillMessage}</div>}
+
+      <div className="autofill-row">
+        <label>
+          Comparable companies
+          <input
+            placeholder="MSFT, GOOGL, META"
+            value={compsInput}
+            onChange={(e) => setCompsInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && fetchComparables()}
+          />
+        </label>
+        <button className="secondary" onClick={fetchComparables} disabled={compsLoading}>
+          {compsLoading ? "Fetching..." : "Fetch comparables"}
+        </button>
+      </div>
+      {compsError && <div className="error">{compsError}</div>}
+      {comparables.length > 0 && (
+        <div className="comps-table">
+          <div className="comps-row comps-header">
+            <span>Ticker</span>
+            <span>EV / EBITDA</span>
+            <span>P/E</span>
+            <span>EBITDA margin</span>
+          </div>
+          {comparables.map((c) => (
+            <div className="comps-row" key={c.ticker}>
+              <span>{c.ticker}</span>
+              <span>{c.evToEbitda !== null ? `${c.evToEbitda.toFixed(1)}x` : "—"}</span>
+              <span>{c.peRatio !== null ? `${c.peRatio.toFixed(1)}x` : "—"}</span>
+              <span>{c.ebitdaMargin !== null ? percent(c.ebitdaMargin) : "—"}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="form-grid">
         <label className="full">
@@ -240,12 +322,35 @@ export default function CompanyAnalyzer() {
         </label>
       </div>
 
+      <div className={`verdict-card ${metrics.upside >= 0 ? "verdict-up" : "verdict-down"}`}>
+        <div>
+          <span className="verdict-label">DCF implied price</span>
+          <strong className="verdict-price">{money(metrics.impliedSharePrice)}</strong>
+        </div>
+        <div className="verdict-delta">
+          <span>{metrics.upside >= 0 ? "Upside" : "Downside"}</span>
+          <strong>{percent(Math.abs(metrics.upside))}</strong>
+          <span className="verdict-vs">vs. current price {money(inputs.currentPrice)}</span>
+        </div>
+      </div>
+
       <div className="metrics">
         <div className="metric"><span>Enterprise value</span><strong>{money(metrics.enterpriseValue)}</strong></div>
+        <div className="metric"><span>DCF equity value</span><strong>{money(metrics.dcfEquityValue)}</strong></div>
         <div className="metric"><span>EV / EBITDA</span><strong>{metrics.evToEbitda.toFixed(1)}x</strong></div>
+        <div className="metric"><span>P/E ratio</span><strong>{metrics.priceToEarnings.toFixed(1)}x</strong></div>
         <div className="metric"><span>EBITDA margin</span><strong>{percent(metrics.ebitdaMargin)}</strong></div>
-        <div className="metric"><span>DCF implied price</span><strong>{money(metrics.impliedSharePrice)}</strong></div>
+        <div className="metric"><span>Net margin</span><strong>{percent(metrics.netMargin)}</strong></div>
+        {compsAverageEvToEbitda !== null && (
+          <div className="metric"><span>Comps avg EV/EBITDA</span><strong>{compsAverageEvToEbitda.toFixed(1)}x</strong></div>
+        )}
+        <div className="metric">
+          <span>Upside / downside</span>
+          <strong className={metrics.upside >= 0 ? "text-up" : "text-down"}>{percent(metrics.upside)}</strong>
+        </div>
       </div>
+
+      <CompanyCharts companyName={company} metrics={metrics} comparables={comparables} />
 
       <div className="actions">
         <button className="primary" onClick={analyze} disabled={loading}>
@@ -259,7 +364,12 @@ export default function CompanyAnalyzer() {
       </div>
       {error && <div className="error">{error}</div>}
       {saveMessage && <div className="notice">{saveMessage}</div>}
-      {report && <div className="report">{report}</div>}
+      {report &&
+        (structuredReport ? (
+          <StructuredReport data={structuredReport} />
+        ) : (
+          <div className="report">{report}</div>
+        ))}
       <p className="disclaimer">
         Simplified educational model. The 5-year DCF projects unlevered free
         cash flow (EBITDA at today&apos;s margin, less D&amp;A, tax-effected,

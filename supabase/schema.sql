@@ -83,3 +83,28 @@ using (auth.uid() = user_id);
 create policy "Users can record their usage"
 on public.usage_events for insert
 with check (auth.uid() = user_id);
+
+-- Allow the "chat" usage kind alongside "analyze" (separate, lighter monthly
+-- cap — see lib/limits.ts PLAN_LIMITS.chatMessagesPerMonth).
+alter table public.usage_events drop constraint if exists usage_events_kind_check;
+alter table public.usage_events add constraint usage_events_kind_check check (kind in ('analyze', 'chat'));
+
+-- Per-report AI chat history. Deleting a report cascades to its chat.
+create table if not exists public.report_chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  report_id uuid not null references public.reports(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.report_chat_messages enable row level security;
+
+create policy "Users can read their report chat messages"
+on public.report_chat_messages for select
+using (auth.uid() = user_id);
+
+create policy "Users can create their report chat messages"
+on public.report_chat_messages for insert
+with check (auth.uid() = user_id);

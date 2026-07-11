@@ -117,6 +117,38 @@ describe("calculateCompanyMetrics — unlevered FCF DCF", () => {
   });
 });
 
+describe("calculateCompanyMetrics — per-year projection", () => {
+  it("returns exactly 5 years, numbered 1 through 5", () => {
+    const metrics = calculateCompanyMetrics(baseInputs);
+    expect(metrics.projection).toHaveLength(5);
+    expect(metrics.projection.map((p) => p.year)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("grows revenue by the growth rate each year, compounding", () => {
+    const metrics = calculateCompanyMetrics(baseInputs);
+    const expectedYear1 = baseInputs.revenue * (1 + baseInputs.growthRate);
+    const expectedYear2 = expectedYear1 * (1 + baseInputs.growthRate);
+    expect(metrics.projection[0].revenue).toBeCloseTo(expectedYear1, 2);
+    expect(metrics.projection[1].revenue).toBeCloseTo(expectedYear2, 2);
+  });
+
+  it("discounts each year's unleveredFcf back at the discount rate", () => {
+    const metrics = calculateCompanyMetrics(baseInputs);
+    metrics.projection.forEach((p) => {
+      const expected = p.unleveredFcf / Math.pow(1 + baseInputs.discountRate, p.year);
+      expect(p.discountedFcf).toBeCloseTo(expected, 6);
+    });
+  });
+
+  it("sums the projection's discounted FCF into the same present value used for dcfEnterpriseValue", () => {
+    const metrics = calculateCompanyMetrics(baseInputs);
+    const sumOfDiscountedFcf = metrics.projection.reduce((sum, p) => sum + p.discountedFcf, 0);
+    // dcfEnterpriseValue = sum(discounted FCF) + discounted terminal value, so
+    // it should always be >= the projection's own discounted-FCF sum alone.
+    expect(metrics.dcfEnterpriseValue).toBeGreaterThanOrEqual(sumOfDiscountedFcf - 0.01);
+  });
+});
+
 describe("money and percent formatters", () => {
   it("formats currency with no decimals", () => {
     expect(money(1234.56)).toBe("$1,235");

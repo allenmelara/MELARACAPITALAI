@@ -25,15 +25,100 @@ Rules:
 
 export function companyAnalysisPrompt(payload: unknown) {
   return `
-Analyze the following company data and calculated metrics.
+Analyze the following company data, calculated metrics, and (if present)
+comparable-company multiples, then call the emit_investment_report tool with
+your findings.
 
 DATA:
 ${JSON.stringify(payload, null, 2)}
 
 Treat all supplied numbers as user-provided and potentially unaudited.
-Explain the valuation without overstating precision.
+Explain the valuation without overstating precision. If a "comparables" array
+is present in the data, ground comparablesAnalysis in those actual multiples;
+if it is empty or absent, say plainly that no comparables were supplied
+rather than inventing peer companies.
 `;
 }
+
+// Structured output for the Company Analyzer's AI report, produced via
+// Anthropic tool use (forced tool_choice) instead of free text, so the UI
+// can render distinct titled sections instead of one prose blob.
+export const INVESTMENT_REPORT_TOOL = {
+  name: "emit_investment_report",
+  description: "Return the structured investment committee report for a company analysis.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      executiveSummary: { type: "string", description: "2-4 sentence high-level summary." },
+      investmentThesis: { type: "string", description: "The core thesis for or against the investment." },
+      financialPerformance: { type: "string", description: "Revenue, margins, and trend discussion." },
+      valuation: { type: "string", description: "Discussion of the DCF and multiples, without overstating precision." },
+      comparablesAnalysis: {
+        type: "string",
+        description:
+          "How this company's multiples compare to the supplied comparable companies. State plainly if none were supplied."
+      },
+      strengths: { type: "array", items: { type: "string" }, description: "3-5 bullet points." },
+      risks: { type: "array", items: { type: "string" }, description: "3-5 bullet points." },
+      bullCase: { type: "string" },
+      bearCase: { type: "string" },
+      keyQuestions: {
+        type: "array",
+        items: { type: "string" },
+        description: "3-5 follow-up questions an analyst would ask."
+      },
+      limitations: { type: "string", description: "Limitations of this simplified model, and disclaimer." }
+    },
+    required: [
+      "executiveSummary",
+      "investmentThesis",
+      "financialPerformance",
+      "valuation",
+      "comparablesAnalysis",
+      "strengths",
+      "risks",
+      "bullCase",
+      "bearCase",
+      "keyQuestions",
+      "limitations"
+    ]
+  }
+};
+
+export function reportChatSystemPrompt(reportTitle: string, reportModule: string, reportContent: string) {
+  return `
+You are the analysis engine inside Melara Capital AI, now answering follow-up
+questions about a specific previously-generated report.
+
+Rules:
+1. Never invent missing financial data.
+2. Answer only using the information in this report and general financial
+   education. If the user asks something the report doesn't cover, say so
+   plainly rather than inventing an answer.
+3. Do not tell the user to buy or sell a security.
+4. Keep responses conversational and concise — a few sentences to a short
+   paragraph, not another full report.
+
+REPORT TITLE: ${reportTitle}
+REPORT TYPE: ${reportModule}
+REPORT CONTENT:
+${reportContent.slice(0, 20000)}
+`;
+}
+
+export type StructuredCompanyReport = {
+  executiveSummary: string;
+  investmentThesis: string;
+  financialPerformance: string;
+  valuation: string;
+  comparablesAnalysis: string;
+  strengths: string[];
+  risks: string[];
+  bullCase: string;
+  bearCase: string;
+  keyQuestions: string[];
+  limitations: string;
+};
 
 export function documentAnalysisPrompt(text: string) {
   return `

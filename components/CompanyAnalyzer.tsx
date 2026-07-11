@@ -19,7 +19,11 @@ const initial: CompanyInputs = {
   currentPrice: 12,
   growthRate: 0.08,
   discountRate: 0.1,
-  terminalGrowthRate: 0.025
+  terminalGrowthRate: 0.025,
+  taxRate: 0.21,
+  depreciationPct: 0.03,
+  capexPct: 0.04,
+  nwcChangePct: 0.01
 };
 
 export default function CompanyAnalyzer() {
@@ -125,6 +129,42 @@ export default function CompanyAnalyzer() {
             onChange={(e) => update("terminalGrowthRate", e.target.value)}
           />
         </label>
+        <label>
+          Tax rate
+          <input
+            type="number"
+            step="0.001"
+            value={inputs.taxRate}
+            onChange={(e) => update("taxRate", e.target.value)}
+          />
+        </label>
+        <label>
+          Depreciation &amp; amortization (% of revenue)
+          <input
+            type="number"
+            step="0.001"
+            value={inputs.depreciationPct}
+            onChange={(e) => update("depreciationPct", e.target.value)}
+          />
+        </label>
+        <label>
+          Capital expenditures (% of revenue)
+          <input
+            type="number"
+            step="0.001"
+            value={inputs.capexPct}
+            onChange={(e) => update("capexPct", e.target.value)}
+          />
+        </label>
+        <label>
+          Change in net working capital (% of revenue)
+          <input
+            type="number"
+            step="0.001"
+            value={inputs.nwcChangePct}
+            onChange={(e) => update("nwcChangePct", e.target.value)}
+          />
+        </label>
       </div>
 
       <div className="metrics">
@@ -148,9 +188,11 @@ export default function CompanyAnalyzer() {
       {saveMessage && <div className="notice">{saveMessage}</div>}
       {report && <div className="report">{report}</div>}
       <p className="disclaimer">
-        Simplified educational model. Net income is used as a rough cash-flow
-        proxy in this MVP and should be replaced with unlevered free cash flow
-        before production use.
+        Simplified educational model. The 5-year DCF projects unlevered free
+        cash flow (EBITDA at today&apos;s margin, less D&amp;A, tax-effected,
+        plus D&amp;A back, less capex and working-capital changes) using flat
+        assumptions each year. Not a substitute for a full three-statement
+        model.
       </p>
     </div>
   );

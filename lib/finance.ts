@@ -9,6 +9,10 @@ export type CompanyInputs = {
   growthRate: number;
   discountRate: number;
   terminalGrowthRate: number;
+  taxRate: number;
+  depreciationPct: number;
+  capexPct: number;
+  nwcChangePct: number;
 };
 
 export function calculateCompanyMetrics(input: CompanyInputs) {
@@ -19,21 +23,31 @@ export function calculateCompanyMetrics(input: CompanyInputs) {
   const evToEbitda = input.ebitda ? enterpriseValue / input.ebitda : 0;
   const priceToEarnings = input.netIncome ? equityValue / input.netIncome : 0;
 
-  let cashFlow = Math.max(input.netIncome, 0);
+  // Unlevered FCF projection: Revenue -> EBITDA (at today's margin) -> EBIT
+  // (less D&A) -> NOPAT (after tax) -> + D&A - Capex - change in NWC, all
+  // expressed as a % of each projected year's revenue.
+  let revenue = input.revenue;
   let pv = 0;
+  let unleveredFcf = 0;
   for (let year = 1; year <= 5; year++) {
-    cashFlow *= 1 + input.growthRate;
-    pv += cashFlow / Math.pow(1 + input.discountRate, year);
+    revenue *= 1 + input.growthRate;
+    const ebitda = revenue * ebitdaMargin;
+    const depreciation = revenue * input.depreciationPct;
+    const ebit = ebitda - depreciation;
+    const nopat = ebit * (1 - input.taxRate);
+    const capex = revenue * input.capexPct;
+    const nwcChange = revenue * input.nwcChangePct;
+    unleveredFcf = nopat + depreciation - capex - nwcChange;
+    pv += unleveredFcf / Math.pow(1 + input.discountRate, year);
   }
 
   const terminalValue =
     input.discountRate > input.terminalGrowthRate
-      ? (cashFlow * (1 + input.terminalGrowthRate)) /
+      ? (unleveredFcf * (1 + input.terminalGrowthRate)) /
         (input.discountRate - input.terminalGrowthRate)
       : 0;
 
-  const dcfEnterpriseValue =
-    pv + terminalValue / Math.pow(1 + input.discountRate, 5);
+  const dcfEnterpriseValue = pv + terminalValue / Math.pow(1 + input.discountRate, 5);
 
   const dcfEquityValue = dcfEnterpriseValue - input.debt + input.cash;
   const impliedSharePrice = input.shares ? dcfEquityValue / input.shares : 0;

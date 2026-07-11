@@ -68,7 +68,7 @@ export default async function PricingPage() {
         </section>
         <section className="pricing-grid">
           {TIERS.map((tier) => (
-            <div key={tier.id} className={`hero-card pricing-card ${plan === tier.id ? "active" : ""}`}>
+            <div key={tier.id} className={`hero-card pricing-card ${user && plan === tier.id ? "active" : ""}`}>
               <h3>{tier.name}</h3>
               <div className="pricing-price">{tier.price}</div>
               <p className="pricing-blurb">{tier.blurb}</p>
@@ -78,7 +78,9 @@ export default async function PricingPage() {
                 ))}
               </ul>
               {tier.id === "free" ? (
-                !user && (
+                user ? (
+                  plan === "free" && <span className="disclaimer">Current plan</span>
+                ) : (
                   <Link href="/signup" className="primary">
                     Get started free
                   </Link>

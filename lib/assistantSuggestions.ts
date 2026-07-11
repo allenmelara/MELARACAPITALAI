@@ -63,10 +63,11 @@ export type ReportChatModule = "company" | "document" | "real_estate" | "wealth"
 // actually want to dig into.
 export const REPORT_CHAT_SUGGESTIONS: Record<ReportChatModule, string[]> = {
   company: [
-    "What are the biggest risks in this analysis?",
-    "How was the DCF implied price calculated?",
-    "What would need to be true for the bull case to play out?",
-    "How does this compare to the comparable companies?"
+    "Explain the valuation.",
+    "What are the biggest risks?",
+    "What assumptions drive intrinsic value?",
+    "How sensitive is the DCF?",
+    "What would Berkshire think about this company?"
   ],
   document: [
     "What are the key takeaways from this document?",

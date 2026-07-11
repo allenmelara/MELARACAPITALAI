@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import type { calculateCompanyMetrics } from "@/lib/finance";
 import { money } from "@/lib/finance";
+import type { FinancialStatements } from "@/lib/secEdgar";
 
 const ACCENT = "#69e59b";
 const MUTED = "#9fb0a5";
@@ -23,12 +24,24 @@ type Metrics = ReturnType<typeof calculateCompanyMetrics>;
 export default function CompanyCharts({
   companyName,
   metrics,
-  comparables
+  comparables,
+  statements
 }: {
   companyName: string;
   metrics: Metrics;
   comparables: Array<{ ticker: string; evToEbitda: number | null }>;
+  statements?: FinancialStatements | null;
 }) {
+  const revenueRow = statements?.incomeStatement.find((r) => r.key === "revenue");
+  // Statement periods are newest-first; reverse to chronological (left-to-right) for a trend chart.
+  const revenueHistory =
+    revenueRow && statements
+      ? statements.periods
+          .map((period, i) => ({ period, revenue: revenueRow.values[i] }))
+          .filter((d): d is { period: string; revenue: number } => d.revenue !== null)
+          .reverse()
+      : [];
+
   const multiplesData = [
     { name: companyName || "This company", evToEbitda: round1(metrics.evToEbitda), isSubject: true },
     ...comparables
@@ -64,7 +77,7 @@ export default function CompanyCharts({
       </div>
 
       <div className="chart-card">
-        <h4>5-year unlevered free cash flow</h4>
+        <h4>{metrics.projectionYears}-year unlevered free cash flow</h4>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={projectionData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
             <CartesianGrid stroke={BORDER} vertical={false} />
@@ -78,6 +91,24 @@ export default function CompanyCharts({
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {revenueHistory.length >= 2 && (
+        <div className="chart-card">
+          <h4>Revenue history (from SEC filings)</h4>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={revenueHistory} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+              <CartesianGrid stroke={BORDER} vertical={false} />
+              <XAxis dataKey="period" stroke={MUTED} fontSize={12} />
+              <YAxis stroke={MUTED} fontSize={12} tickFormatter={(v) => money(v)} width={80} />
+              <Tooltip
+                contentStyle={{ background: PANEL, border: `1px solid ${BORDER}`, borderRadius: 8, color: "#f3f7f4" }}
+                formatter={(value: number) => [money(value), "Revenue"]}
+              />
+              <Bar dataKey="revenue" fill={ACCENT} radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }

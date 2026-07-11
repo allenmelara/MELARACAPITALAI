@@ -249,7 +249,18 @@ export default function CompanyAnalyzer() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "company",
-          payload: { company: identity.name, inputs, metrics, comparables, ratios }
+          payload: {
+            company: {
+              name: identity.name,
+              ticker: identity.ticker,
+              exchange: identity.exchange,
+              industry: identity.industry
+            },
+            inputs,
+            metrics,
+            comparables,
+            ratios
+          }
         })
       });
       const data = await response.json();
@@ -272,7 +283,17 @@ export default function CompanyAnalyzer() {
     const result = await saveReport({
       title: identity.name,
       module: "company",
-      input: { company: identity.name, ticker: identity.ticker, inputs, comparables, ratios: ratiosUsed },
+      input: {
+        company: identity.name,
+        ticker: identity.ticker,
+        exchange: identity.exchange,
+        industry: identity.industry,
+        inputs,
+        metrics,
+        comparables,
+        ratios: ratiosUsed,
+        statements
+      },
       output: reportText
     });
     if (result.error) {
@@ -369,6 +390,7 @@ export default function CompanyAnalyzer() {
             comparables={comparables}
             compsAverageEvToEbitda={compsAverageEvToEbitda}
             companyName={identity?.name ?? ""}
+            statements={statements}
             onUpdate={update}
             onTerminalMethodChange={updateTerminalMethod}
             marginOverrideEnabled={marginOverrideEnabled}
@@ -622,6 +644,7 @@ function StepValuation({
   comparables,
   compsAverageEvToEbitda,
   companyName,
+  statements,
   onUpdate,
   onTerminalMethodChange,
   marginOverrideEnabled,
@@ -633,6 +656,7 @@ function StepValuation({
   comparables: Comparable[];
   compsAverageEvToEbitda: number | null;
   companyName: string;
+  statements: StatementsData | null;
   onUpdate: (key: keyof CompanyInputs, raw: string) => void;
   onTerminalMethodChange: (method: TerminalMethod) => void;
   marginOverrideEnabled: boolean;
@@ -676,7 +700,7 @@ function StepValuation({
         </div>
       </div>
 
-      <CompanyCharts companyName={companyName} metrics={metrics} comparables={comparables} />
+      <CompanyCharts companyName={companyName} metrics={metrics} comparables={comparables} statements={statements} />
 
       <AdvancedSettings
         inputs={inputs}

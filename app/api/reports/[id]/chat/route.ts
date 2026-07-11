@@ -80,7 +80,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const reply = await anthropic.messages.create({
       model: process.env.CLAUDE_MODEL || "claude-sonnet-5",
       max_tokens: 1000,
-      system: reportChatSystemPrompt(report.title, report.module, report.output),
+      system: reportChatSystemPrompt({
+        reportTitle: report.title,
+        reportModule: report.module,
+        reportContent: report.output,
+        context: report.input
+      }),
       messages: [
         ...recentHistory.map((m) => ({ role: m.role, content: m.content })),
         { role: "user" as const, content: parsed.data.message }

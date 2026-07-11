@@ -9,7 +9,17 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 12, fontWeight: 700, marginTop: 16, marginBottom: 6, color: "#0a5c33" },
   paragraph: { fontSize: 11, lineHeight: 1.5, marginBottom: 6 },
   listItem: { fontSize: 11, lineHeight: 1.5, marginBottom: 4 },
-  disclaimer: { fontSize: 9, color: "#888888", marginTop: 28, lineHeight: 1.4 }
+  disclaimer: { fontSize: 9, color: "#888888", marginTop: 28, lineHeight: 1.4 },
+  recommendationBox: {
+    borderWidth: 1,
+    borderColor: "#0a5c33",
+    borderRadius: 4,
+    padding: 10,
+    marginTop: 12,
+    marginBottom: 6
+  },
+  recommendationRating: { fontSize: 13, fontWeight: 700, color: "#0a5c33", marginBottom: 4 },
+  recommendationNote: { fontSize: 8, color: "#888888", marginTop: 4 }
 });
 
 export function ReportDocument({ report }: { report: Report }) {
@@ -25,13 +35,28 @@ export function ReportDocument({ report }: { report: Report }) {
 
         {structured ? (
           <>
-            <Section title="Executive Summary" text={structured.executiveSummary} />
+            <Section title="Investment Summary" text={structured.executiveSummary} />
+            {structured.recommendation && (
+              <View style={styles.recommendationBox}>
+                <Text style={styles.recommendationRating}>
+                  Investment Recommendation: {structured.recommendation}
+                </Text>
+                {structured.recommendationRationale && (
+                  <Text style={styles.paragraph}>{structured.recommendationRationale}</Text>
+                )}
+                <Text style={styles.recommendationNote}>
+                  A general, educational equity-research-style view — not individualized investment advice.
+                </Text>
+              </View>
+            )}
             <Section title="Investment Thesis" text={structured.investmentThesis} />
-            <Section title="Financial Performance" text={structured.financialPerformance} />
-            <Section title="Valuation" text={structured.valuation} />
-            <Section title="Comparables Analysis" text={structured.comparablesAnalysis} />
+            <Section title="Business Overview" text={structured.businessOverview} />
+            <Section title="Financial Analysis" text={structured.financialPerformance} />
+            <Section title="DCF Valuation" text={structured.valuation} />
+            <Section title="Ratio Analysis" text={structured.ratioAnalysis} />
+            <Section title="Comparable Company Analysis" text={structured.comparablesAnalysis} />
             <ListSection title="Strengths" items={structured.strengths} />
-            <ListSection title="Risks" items={structured.risks} />
+            <ListSection title="Key Risks" items={structured.risks} />
             <Section title="Bull Case" text={structured.bullCase} />
             <Section title="Bear Case" text={structured.bearCase} />
             <ListSection title="Key Questions" items={structured.keyQuestions} />

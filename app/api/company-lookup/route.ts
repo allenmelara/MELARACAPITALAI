@@ -71,7 +71,15 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      company: { name: resolved.name, ticker },
+      company: {
+        // Prefer Finnhub's common name ("Apple Inc") over the SEC legal title
+        // ("APPLE INC") when available, so the selection UI reads naturally.
+        name: profile?.name || resolved.name,
+        ticker,
+        exchange: profile?.exchange ?? null,
+        industry: profile?.industry ?? null,
+        logo: profile?.logo ?? null
+      },
       inputs,
       sourceNotes: combinedSourceNotes,
       asOf: new Date().toISOString()

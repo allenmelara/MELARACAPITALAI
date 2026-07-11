@@ -228,3 +228,118 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
   .form-grid, .metrics { grid-template-columns:1fr; }
   .nav-note { display:none; }
 }
+
+/* ---------- Company Research guided workflow ---------- */
+.workflow { display:flex; flex-direction:column; gap:22px; }
+.workflow-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.workflow-title { font-size:clamp(24px, 3.4vw, 34px); letter-spacing:-.03em; margin:0 0 6px; }
+.workflow-sub { color:var(--muted); margin:0; max-width:560px; }
+.workflow-reset { display:inline-flex; align-items:center; gap:8px; padding:9px 14px; font-size:13px; }
+
+/* Buttons that pair an icon with a label across the workflow */
+.workflow .primary, .workflow .secondary { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+
+/* Stepper */
+.workflow-stepper {
+  list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px;
+}
+.workflow-step { min-width:0; }
+.workflow-step-btn {
+  width:100%; display:flex; align-items:center; gap:12px; text-align:left; padding:14px 16px;
+  background:linear-gradient(180deg, var(--panel2), var(--panel)); border:1px solid var(--border);
+  border-radius:14px; color:var(--muted); transition:border-color .15s ease, color .15s ease;
+}
+.workflow-step-btn:disabled { cursor:not-allowed; opacity:.7; }
+.workflow-step-marker {
+  flex-shrink:0; width:30px; height:30px; border-radius:999px; display:flex; align-items:center; justify-content:center;
+  border:1px solid var(--border); font-size:14px; font-weight:700; background:#09130e;
+}
+.workflow-step-text { display:flex; flex-direction:column; min-width:0; }
+.workflow-step-label { font-size:14px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.workflow-step-hint { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.workflow-step-active .workflow-step-btn { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+.workflow-step-active .workflow-step-marker { border-color:var(--accent); color:var(--accent); }
+.workflow-step-done .workflow-step-marker { background:var(--accent); color:#051008; border-color:var(--accent); }
+.workflow-step-done .workflow-step-btn:hover { border-color:var(--accent); }
+.workflow-step-upcoming .workflow-step-label { color:var(--muted); }
+
+/* Persistent identity bar (steps 2-4) */
+.identity-bar, .selected-company {
+  display:flex; align-items:center; gap:14px; padding:14px 18px; border:1px solid var(--border);
+  border-radius:14px; background:linear-gradient(180deg, var(--panel2), var(--panel));
+}
+.identity-logo { width:42px; height:42px; border-radius:10px; object-fit:contain; background:#fff; flex-shrink:0; }
+.identity-logo-fallback {
+  display:flex; align-items:center; justify-content:center; background:#09130e; color:var(--accent);
+  font-weight:800; font-size:18px; border:1px solid var(--border);
+}
+.identity-meta { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.identity-name { font-size:16px; letter-spacing:-.01em; }
+.identity-tags { display:flex; flex-wrap:wrap; gap:8px; align-items:center; color:var(--muted); font-size:13px; }
+.identity-tags > span { display:inline-flex; align-items:center; }
+.identity-tags > span:not(:last-child)::after { content:"·"; margin-left:8px; color:var(--border); }
+.identity-ticker { color:var(--accent); font-weight:700; }
+.selected-company { margin-top:20px; position:relative; }
+.selected-company.is-loading { opacity:.85; }
+.selected-company-status { margin-left:auto; color:var(--muted); font-size:12px; white-space:nowrap; }
+
+/* Stage container + step body */
+.workflow-stage { padding:26px; }
+.step-body { display:flex; flex-direction:column; gap:20px; }
+.step-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.step-heading h2 { margin:0 0 6px; }
+.step-lede { color:var(--muted); margin:0; max-width:620px; line-height:1.55; font-size:14px; }
+.subsection-title { margin:6px 0 0; font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+.step-refetch { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; font-size:13px; white-space:nowrap; }
+
+/* Company search box */
+.company-search { position:relative; }
+.company-search-field { position:relative; display:flex; align-items:center; }
+.company-search-icon { position:absolute; left:14px; color:var(--muted); pointer-events:none; }
+.company-search-input { padding-left:42px; padding-right:42px; height:52px; font-size:16px; }
+.company-search-spinner { position:absolute; right:14px; color:var(--accent); animation:spin 1s linear infinite; }
+.company-search-results {
+  list-style:none; margin:8px 0 0; padding:6px; position:absolute; left:0; right:0; z-index:20;
+  background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  box-shadow:0 20px 50px rgba(0,0,0,.45); max-height:340px; overflow-y:auto;
+}
+.company-search-result {
+  width:100%; display:flex; align-items:baseline; gap:12px; text-align:left; padding:11px 12px;
+  background:transparent; border:none; border-radius:10px; color:var(--text);
+}
+.company-search-result.active { background:rgba(105,229,155,.08); }
+.company-search-ticker { font-weight:700; color:var(--accent); min-width:64px; }
+.company-search-name { color:var(--muted); font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.company-search-empty { margin-top:8px; color:var(--muted); font-size:13px; padding:10px 12px; border:1px dashed var(--border); border-radius:10px; }
+
+/* Field labels + provenance badges */
+.field-label { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.field-review input { border-color:rgba(255,143,143,.5); }
+.source-badge {
+  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+  padding:2px 7px; border-radius:999px; border:1px solid var(--border); white-space:nowrap;
+}
+.source-filing { color:var(--accent); background:rgba(105,229,155,.1); border-color:rgba(105,229,155,.35); }
+.source-derived { color:#e5c76b; background:rgba(229,199,107,.1); border-color:rgba(229,199,107,.3); }
+.source-live { color:#6bd4e5; background:rgba(107,212,229,.1); border-color:rgba(107,212,229,.3); }
+.source-missing { color:var(--danger); background:rgba(255,143,143,.1); border-color:rgba(255,143,143,.35); }
+
+.comps-block { display:flex; flex-direction:column; gap:12px; padding-top:6px; border-top:1px solid var(--border); }
+.comps-block .autofill-row { margin:0; }
+
+/* Step navigation footer */
+.workflow-nav { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:26px; padding-top:20px; border-top:1px solid var(--border); }
+
+.spin { animation:spin 1s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (max-width: 820px) {
+  .workflow-stepper { grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .workflow-step-hint { display:none; }
+}
+@media (max-width: 560px) {
+  .workflow-stepper { grid-template-columns:1fr 1fr; gap:8px; }
+  .workflow-step-btn { padding:10px; }
+  .workflow-stage { padding:18px; }
+  .company-search-ticker { min-width:52px; }
+}

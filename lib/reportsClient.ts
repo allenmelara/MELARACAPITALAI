@@ -5,7 +5,7 @@ export async function saveReport(payload: {
   module: ReportModule;
   input: unknown;
   output: string;
-}): Promise<{ error?: string }> {
+}): Promise<{ id?: string; error?: string }> {
   const response = await fetch("/api/reports", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -15,5 +15,5 @@ export async function saveReport(payload: {
   if (!response.ok) {
     return { error: data.error || "Failed to save report." };
   }
-  return {};
+  return { id: data.report?.id };
 }

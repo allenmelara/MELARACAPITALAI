@@ -11,28 +11,19 @@ import {
 } from "@/lib/prompts";
 import { getUser } from "@/lib/supabase/server";
 import { getPlan } from "@/lib/profile";
-import { PLAN_LIMITS } from "@/lib/limits";
+import { PLAN_LIMITS, documentCharLimit } from "@/lib/limits";
 import { countUsageSince, recordUsage, startOfCurrentMonthIso } from "@/lib/usage";
 import { logError, logWarn } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
-const MAX_DOCUMENT_CHARS = 60_000; // matches the slice in lib/prompts.ts documentAnalysisPrompt
 const MAX_STRUCTURED_PAYLOAD_CHARS = 20_000;
 
-const bodySchema = z
-  .object({
-    mode: z.enum(["company", "document", "real_estate", "wealth"]),
-    payload: z.unknown()
-  })
-  .superRefine((data, ctx) => {
-    const size = JSON.stringify(data.payload ?? "").length;
-    const max = data.mode === "document" ? MAX_DOCUMENT_CHARS : MAX_STRUCTURED_PAYLOAD_CHARS;
-    if (size > max) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Payload is too large." });
-    }
-  });
+const bodySchema = z.object({
+  mode: z.enum(["company", "document", "real_estate", "wealth"]),
+  payload: z.unknown()
+});
 
 export async function POST(request: Request) {
   try {
@@ -52,15 +43,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Too many requests. Slow down and try again." }, { status: 429 });
     }
 
-    const plan = await getPlan();
-    const usedThisMonth = await countUsageSince("analyze", startOfCurrentMonthIso());
-    if (usedThisMonth >= PLAN_LIMITS[plan].reportsPerMonth) {
-      return NextResponse.json(
-        { error: `You've reached your ${plan} plan's monthly report limit. Upgrade for more.` },
-        { status: 402 }
-      );
-    }
-
     const parsed = bodySchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
@@ -68,17 +50,59 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    const { mode, payload } = parsed.data;
+
+    const plan = await getPlan();
+
+    // Only the expensive, AI-heavy modes are metered. Real estate and wealth
+    // calculators stay unrestricted on every plan, matching the rest of the
+    // app's calculators/saved-reports/navigation.
+    if (mode === "company") {
+      const used = await countUsageSince("analyze", startOfCurrentMonthIso());
+      if (used >= PLAN_LIMITS[plan].aiResearchCredits) {
+        return NextResponse.json(
+          { error: `You've used all your ${plan} plan's AI Research Credits this month. Upgrade for more.` },
+          { status: 402 }
+        );
+      }
+      const size = JSON.stringify(payload ?? "").length;
+      if (size > MAX_STRUCTURED_PAYLOAD_CHARS) {
+        return NextResponse.json({ error: "Payload is too large." }, { status: 400 });
+      }
+    } else if (mode === "document") {
+      const used = await countUsageSince("document", startOfCurrentMonthIso());
+      if (used >= PLAN_LIMITS[plan].documentUploadsPerMonth) {
+        return NextResponse.json(
+          { error: `You've used all your ${plan} plan's document uploads this month. Upgrade for more.` },
+          { status: 402 }
+        );
+      }
+      const maxChars = documentCharLimit(plan);
+      if (maxChars !== Infinity && String(payload ?? "").length > maxChars) {
+        return NextResponse.json(
+          {
+            error: `Document exceeds your ${plan} plan's ~${PLAN_LIMITS[plan].documentMaxPages}-page limit. Upgrade for a higher limit.`
+          },
+          { status: 400 }
+        );
+      }
+    } else {
+      const size = JSON.stringify(payload ?? "").length;
+      if (size > MAX_STRUCTURED_PAYLOAD_CHARS) {
+        return NextResponse.json({ error: "Payload is too large." }, { status: 400 });
+      }
+    }
 
     const prompt = (() => {
-      switch (parsed.data.mode) {
+      switch (mode) {
         case "company":
-          return companyAnalysisPrompt(parsed.data.payload);
+          return companyAnalysisPrompt(payload);
         case "real_estate":
-          return realEstateAnalysisPrompt(parsed.data.payload);
+          return realEstateAnalysisPrompt(payload);
         case "wealth":
-          return wealthAnalysisPrompt(parsed.data.payload);
+          return wealthAnalysisPrompt(payload);
         case "document":
-          return documentAnalysisPrompt(String(parsed.data.payload ?? ""));
+          return documentAnalysisPrompt(String(payload ?? ""), documentCharLimit(plan));
       }
     })();
 
@@ -86,7 +110,7 @@ export async function POST(request: Request) {
       apiKey: process.env.ANTHROPIC_API_KEY
     });
 
-    const isCompanyMode = parsed.data.mode === "company";
+    const isCompanyMode = mode === "company";
 
     const message = await anthropic.messages.create({
       model: process.env.CLAUDE_MODEL || "claude-sonnet-5",
@@ -116,10 +140,14 @@ export async function POST(request: Request) {
           .map((block) => block.text)
           .join("\n");
 
-    try {
-      await recordUsage(user.id, "analyze");
-    } catch (usageError) {
-      logWarn("analyze.recordUsage", usageError);
+    // Real estate and wealth calculators are never metered — only record
+    // usage for the two AI-heavy modes that actually consume plan limits.
+    if (mode === "company" || mode === "document") {
+      try {
+        await recordUsage(user.id, mode === "company" ? "analyze" : "document");
+      } catch (usageError) {
+        logWarn("analyze.recordUsage", usageError);
+      }
     }
 
     return NextResponse.json({ report });

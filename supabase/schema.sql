@@ -108,3 +108,14 @@ using (auth.uid() = user_id);
 create policy "Users can create their report chat messages"
 on public.report_chat_messages for insert
 with check (auth.uid() = user_id);
+
+-- Pricing redesign: AI Research Credits as the primary metered resource,
+-- plus a separate "document" usage kind (its own monthly cap, decoupled from
+-- company-report credits — see lib/limits.ts PLAN_LIMITS).
+alter table public.usage_events drop constraint if exists usage_events_kind_check;
+alter table public.usage_events add constraint usage_events_kind_check check (kind in ('analyze', 'chat', 'document'));
+
+-- Business-plan white-label PDF export branding. Null on every other plan
+-- (and on Business until the user sets it) falls back to standard branding.
+alter table public.profiles add column if not exists brand_name text;
+alter table public.profiles add column if not exists brand_logo_url text;

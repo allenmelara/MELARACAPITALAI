@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { getUser } from "@/lib/supabase/server";
 import { getReport } from "@/lib/reports";
+import { getProfile } from "@/lib/profile";
 import { logError } from "@/lib/logger";
 import { ReportDocument } from "@/lib/pdf/ReportDocument";
 
@@ -16,12 +17,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
 
   try {
-    const report = await getReport(id);
+    const [report, profile] = await Promise.all([getReport(id), getProfile()]);
     if (!report) {
       return NextResponse.json({ error: "Report not found." }, { status: 404 });
     }
 
-    const buffer = await renderToBuffer(<ReportDocument report={report} />);
+    const buffer = await renderToBuffer(
+      <ReportDocument
+        report={report}
+        branding={{
+          plan: profile?.plan ?? "free",
+          brandName: profile?.brand_name,
+          brandLogoUrl: profile?.brand_logo_url
+        }}
+      />
+    );
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {

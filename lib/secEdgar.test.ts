@@ -105,6 +105,40 @@ describe("extractCompanyInputsFromFacts — full filing data", () => {
   });
 });
 
+describe("extractCompanyInputsFromFacts — company migrated off the primary revenue tag", () => {
+  // Regression test: mirrors real Microsoft SEC data, where "Revenues" has
+  // annual facts but the newest one is from a 2010 10-K (they migrated to
+  // RevenueFromContractWithCustomerExcludingAssessedTax years later). Picking
+  // "first tag with any data" would silently return the 2010 figure.
+  const migratedTagFacts: CompanyFacts = {
+    facts: {
+      "us-gaap": {
+        Revenues: { units: { USD: [fact(62_484_000_000, "2010-06-30", "2009-07-01", { fy: 2010 })] } },
+        RevenueFromContractWithCustomerExcludingAssessedTax: {
+          units: {
+            USD: [
+              fact(211_915_000_000, "2023-06-30", "2022-07-01", { fy: 2023 }),
+              fact(245_122_000_000, "2024-06-30", "2023-07-01", { fy: 2024 })
+            ]
+          }
+        },
+        NetIncomeLoss: { units: { USD: [fact(88_000_000_000, "2024-06-30", "2023-07-01", { fy: 2024 })] } }
+      }
+    }
+  };
+
+  it("prefers the tag with the most recently reported value, not the first tag with any data", () => {
+    const { inputs, sourceNotes } = extractCompanyInputsFromFacts(migratedTagFacts);
+    expect(inputs.revenue).toBe(245_122_000_000);
+    expect(sourceNotes.revenue).toBe("filing");
+  });
+
+  it("computes a sane growth rate off the two most recent annual figures on the winning tag", () => {
+    const { inputs } = extractCompanyInputsFromFacts(migratedTagFacts);
+    expect(inputs.growthRate).toBeCloseTo(245_122_000_000 / 211_915_000_000 - 1, 6);
+  });
+});
+
 describe("extractCompanyInputsFromFacts — missing EBITDA components", () => {
   const sparseFacts: CompanyFacts = {
     facts: {

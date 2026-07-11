@@ -103,15 +103,25 @@ function latestAnnual(items: Fact[]): Fact | undefined {
   return annualFacts(items)[0];
 }
 
+// Picks the tag with the most recently reported annual value, not just the
+// first tag in the list that has any data at all. Companies routinely
+// migrate to newer XBRL tags (e.g. Revenues -> RevenueFromContractWith...
+// after ASC 606 adoption) while leaving years of stale history under the
+// old tag — taking "first with any data" would silently return outdated
+// figures from a tag the company stopped using years ago.
 function firstAvailable(
   facts: CompanyFacts,
   tags: string[]
 ): { fact: Fact; tag: string } | undefined {
-  for (const tag of tags) {
-    const fact = latestAnnual(getUnitsUSD(facts, tag));
-    if (fact) return { fact, tag };
-  }
-  return undefined;
+  const candidates = tags
+    .map((tag) => {
+      const fact = latestAnnual(getUnitsUSD(facts, tag));
+      return fact ? { fact, tag } : undefined;
+    })
+    .filter((candidate): candidate is { fact: Fact; tag: string } => candidate !== undefined);
+
+  if (candidates.length === 0) return undefined;
+  return candidates.sort((a, b) => b.fact.end.localeCompare(a.fact.end))[0];
 }
 
 export type SourceStatus = "filing" | "derived" | "not_found";

@@ -70,32 +70,26 @@ export default function Home() {
           <h2>Why Melara Capital AI?</h2>
           <div className="why-grid">
             <div className="why-card">
-              <span className="why-icon">📊</span>
               <h3>Institutional Valuation Models</h3>
               <p>DCF, EV/EBITDA, comparable companies, and financial ratio analysis.</p>
             </div>
             <div className="why-card">
-              <span className="why-icon">🤖</span>
               <h3>AI-Powered Insights</h3>
               <p>Transform financial statements into clear, actionable research reports.</p>
             </div>
             <div className="why-card">
-              <span className="why-icon">📈</span>
               <h3>Professional Research Reports</h3>
               <p>Export polished PDF reports, structured like an analyst&apos;s investment memo.</p>
             </div>
             <div className="why-card">
-              <span className="why-icon">🏢</span>
               <h3>Analyze Multiple Asset Classes</h3>
               <p>Companies, real estate, financial documents, and personal wealth planning.</p>
             </div>
             <div className="why-card">
-              <span className="why-icon">⚡</span>
               <h3>Save Hours of Research</h3>
               <p>Spend less time collecting data and more time making informed decisions.</p>
             </div>
             <div className="why-card">
-              <span className="why-icon">🔒</span>
               <h3>Transparent Methodology</h3>
               <p>Every report clearly documents assumptions, calculations, and limitations.</p>
             </div>

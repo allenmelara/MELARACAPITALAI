@@ -141,7 +141,7 @@ export default function WealthPlanner() {
 
       <div className="actions">
         <button className="primary" onClick={analyze} disabled={loading}>
-          {loading ? "Analyzing..." : "Generate AI investment report"}
+          {loading ? "Analyzing..." : "Generate Report"}
         </button>
         {report && (
           <button className="secondary" onClick={handleSave} disabled={saving}>

@@ -85,6 +85,10 @@ function getUnitsShares(facts: CompanyFacts, tag: string): Fact[] {
   return facts.facts?.["us-gaap"]?.[tag]?.units?.shares ?? [];
 }
 
+function getUnits(facts: CompanyFacts, tag: string, unit: "USD" | "shares"): Fact[] {
+  return unit === "shares" ? getUnitsShares(facts, tag) : getUnitsUSD(facts, tag);
+}
+
 // A "full fiscal year" duration fact: filed on a 10-K, with either no start
 // (an instant fact, e.g. balance-sheet items) or a start/end span of roughly
 // a year (not a quarterly 10-Q slice reported under the same tag).
@@ -247,4 +251,207 @@ export function extractCompanyInputsFromFacts(facts: CompanyFacts): {
   }
 
   return { inputs, sourceNotes };
+}
+
+// ---------------------------------------------------------------------------
+// Full financial-statement extraction (Income Statement / Balance Sheet /
+// Cash Flow), built from the SAME companyfacts payload used above — no extra
+// network calls. Values are aligned to a shared set of fiscal-year ends so the
+// three statements line up column-for-column in the UI.
+// ---------------------------------------------------------------------------
+
+export type StatementRow = {
+  key: string;
+  label: string;
+  // One value per period in `periods` order (newest first); null where the
+  // filer did not tag that line item for that year.
+  values: (number | null)[];
+  emphasis?: boolean; // subtotal / headline lines rendered with weight
+};
+
+export type FinancialStatements = {
+  periods: string[]; // e.g. ["FY2024", "FY2023", ...] newest first
+  periodEnds: string[]; // ISO end dates aligned to `periods`
+  incomeStatement: StatementRow[];
+  balanceSheet: StatementRow[];
+  cashFlow: StatementRow[];
+};
+
+type LineSpec = {
+  key: string;
+  label: string;
+  tags: string[];
+  unit?: "USD" | "shares";
+  emphasis?: boolean;
+};
+
+const INCOME_STATEMENT_LINES: LineSpec[] = [
+  { key: "revenue", label: "Revenue", tags: ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax"], emphasis: true },
+  { key: "costOfRevenue", label: "Cost of revenue", tags: ["CostOfRevenue", "CostOfGoodsAndServicesSold"] },
+  { key: "grossProfit", label: "Gross profit", tags: ["GrossProfit"], emphasis: true },
+  { key: "rnd", label: "Research & development", tags: ["ResearchAndDevelopmentExpense"] },
+  { key: "sga", label: "Selling, general & admin", tags: ["SellingGeneralAndAdministrativeExpense", "GeneralAndAdministrativeExpense"] },
+  { key: "operatingIncome", label: "Operating income", tags: ["OperatingIncomeLoss"], emphasis: true },
+  { key: "interestExpense", label: "Interest expense", tags: ["InterestExpense", "InterestExpenseNonoperating"] },
+  {
+    key: "pretaxIncome",
+    label: "Pretax income",
+    tags: [
+      "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+      "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments"
+    ]
+  },
+  { key: "incomeTax", label: "Income tax", tags: ["IncomeTaxExpenseBenefit"] },
+  { key: "netIncome", label: "Net income", tags: ["NetIncomeLoss"], emphasis: true },
+  { key: "dilutedShares", label: "Diluted shares", tags: ["WeightedAverageNumberOfDilutedSharesOutstanding"], unit: "shares" }
+];
+
+const BALANCE_SHEET_LINES: LineSpec[] = [
+  { key: "cash", label: "Cash & equivalents", tags: ["CashAndCashEquivalentsAtCarryingValue"] },
+  { key: "shortTermInvestments", label: "Short-term investments", tags: ["ShortTermInvestments", "MarketableSecuritiesCurrent"] },
+  { key: "currentAssets", label: "Total current assets", tags: ["AssetsCurrent"], emphasis: true },
+  { key: "totalAssets", label: "Total assets", tags: ["Assets"], emphasis: true },
+  { key: "currentLiabilities", label: "Total current liabilities", tags: ["LiabilitiesCurrent"], emphasis: true },
+  { key: "longTermDebt", label: "Long-term debt", tags: ["LongTermDebtNoncurrent", "LongTermDebt"] },
+  { key: "totalLiabilities", label: "Total liabilities", tags: ["Liabilities"], emphasis: true },
+  {
+    key: "equity",
+    label: "Total equity",
+    tags: ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+    emphasis: true
+  }
+];
+
+const CASH_FLOW_LINES: LineSpec[] = [
+  { key: "operatingCashFlow", label: "Operating cash flow", tags: ["NetCashProvidedByUsedInOperatingActivities", "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"], emphasis: true },
+  { key: "depreciationAmortization", label: "Depreciation & amortization", tags: ["DepreciationDepletionAndAmortization", "DepreciationAmortizationAndAccretionNet"] },
+  { key: "capex", label: "Capital expenditures", tags: ["PaymentsToAcquirePropertyPlantAndEquipment"] },
+  { key: "investingCashFlow", label: "Investing cash flow", tags: ["NetCashProvidedByUsedInInvestingActivities", "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations"] },
+  { key: "financingCashFlow", label: "Financing cash flow", tags: ["NetCashProvidedByUsedInFinancingActivities", "NetCashProvidedByUsedInFinancingActivitiesContinuingOperations"] }
+];
+
+// The value of a line item at a specific fiscal-year end, trying each candidate
+// tag in order (handles companies that migrated between XBRL tags over time).
+function valueAtEnd(facts: CompanyFacts, spec: LineSpec, end: string): number | null {
+  for (const tag of spec.tags) {
+    const hit = annualFacts(getUnits(facts, tag, spec.unit ?? "USD")).find((f) => f.end === end);
+    if (hit) return hit.val;
+  }
+  return null;
+}
+
+function buildRows(facts: CompanyFacts, specs: LineSpec[], periodEnds: string[]): StatementRow[] {
+  return specs
+    .map((spec) => ({
+      key: spec.key,
+      label: spec.label,
+      emphasis: spec.emphasis,
+      values: periodEnds.map((end) => valueAtEnd(facts, spec, end))
+    }))
+    // Drop line items the filer never tags in any shown period.
+    .filter((row) => row.values.some((v) => v !== null));
+}
+
+export function extractFinancialStatements(facts: CompanyFacts, years = 4): FinancialStatements {
+  // Use net income (near-universally reported on a 10-K) as the spine that
+  // defines which fiscal years — and which period-end dates — the columns show.
+  const spine = annualFacts(getUnitsUSD(facts, "NetIncomeLoss")).filter((f) => f.start);
+  const seen = new Set<string>();
+  const columns: { end: string; fy: number }[] = [];
+  for (const fact of spine) {
+    if (seen.has(fact.end)) continue;
+    seen.add(fact.end);
+    columns.push({ end: fact.end, fy: fact.fy });
+    if (columns.length >= years) break;
+  }
+
+  const periodEnds = columns.map((c) => c.end);
+  const periods = columns.map((c) => (c.fy ? `FY${c.fy}` : c.end.slice(0, 4)));
+
+  const incomeStatement = buildRows(facts, INCOME_STATEMENT_LINES, periodEnds);
+  const balanceSheet = buildRows(facts, BALANCE_SHEET_LINES, periodEnds);
+  const cashFlow = buildRows(facts, CASH_FLOW_LINES, periodEnds);
+
+  // Derived: free cash flow = operating cash flow − capex, per period.
+  const ocf = cashFlow.find((r) => r.key === "operatingCashFlow");
+  const capex = cashFlow.find((r) => r.key === "capex");
+  if (ocf && capex) {
+    cashFlow.push({
+      key: "freeCashFlow",
+      label: "Free cash flow",
+      emphasis: true,
+      values: periodEnds.map((_, i) => {
+        const o = ocf.values[i];
+        const c = capex.values[i];
+        return o !== null && c !== null ? o - c : null;
+      })
+    });
+  }
+
+  return { periods, periodEnds, incomeStatement, balanceSheet, cashFlow };
+}
+
+// ---------------------------------------------------------------------------
+// Recent filings (dates + links) from the SEC submissions API. This is the
+// authoritative source for filing dates, kept separate from companyfacts.
+// ---------------------------------------------------------------------------
+
+export type Filing = {
+  form: string;
+  filingDate: string;
+  reportDate: string;
+  accessionNumber: string;
+  primaryDocument: string;
+  url: string;
+};
+
+type SubmissionsResponse = {
+  filings?: {
+    recent?: {
+      accessionNumber?: string[];
+      filingDate?: string[];
+      reportDate?: string[];
+      form?: string[];
+      primaryDocument?: string[];
+    };
+  };
+};
+
+const FILING_FORMS = new Set(["10-K", "10-Q", "8-K", "20-F", "40-F"]);
+
+export async function getRecentFilings(cik: string, limit = 8): Promise<Filing[]> {
+  const cacheKey = `sec:filings:${cik}`;
+  const cached = getCached<Filing[]>(cacheKey);
+  if (cached) return cached;
+
+  const response = await fetch(`https://data.sec.gov/submissions/CIK${cik}.json`, {
+    headers: { "User-Agent": userAgent() }
+  });
+  if (!response.ok) {
+    throw new Error(`SEC submissions request failed: ${response.status}`);
+  }
+  const data = (await response.json()) as SubmissionsResponse;
+  const recent = data.filings?.recent;
+  if (!recent?.accessionNumber) return [];
+
+  const cikInt = String(Number(cik)); // submissions URLs use the CIK without leading zeros
+  const filings: Filing[] = [];
+  for (let i = 0; i < recent.accessionNumber.length && filings.length < limit; i++) {
+    const form = recent.form?.[i] ?? "";
+    if (!FILING_FORMS.has(form)) continue;
+    const accession = recent.accessionNumber[i];
+    const accessionNoDashes = accession.replace(/-/g, "");
+    const primaryDocument = recent.primaryDocument?.[i] ?? "";
+    filings.push({
+      form,
+      filingDate: recent.filingDate?.[i] ?? "",
+      reportDate: recent.reportDate?.[i] ?? "",
+      accessionNumber: accession,
+      primaryDocument,
+      url: `https://www.sec.gov/Archives/edgar/data/${cikInt}/${accessionNoDashes}/${primaryDocument}`
+    });
+  }
+
+  setCached(cacheKey, filings, COMPANY_FACTS_TTL_MS);
+  return filings;
 }

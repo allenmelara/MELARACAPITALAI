@@ -16,6 +16,9 @@ import ReportChat from "@/components/ReportChat";
 import CompanySearch, { type SelectedCompany } from "@/components/company/CompanySearch";
 import WorkflowStepper, { type WorkflowStep } from "@/components/company/WorkflowStepper";
 import SourceBadge, { type FieldSource } from "@/components/company/SourceBadge";
+import FinancialStatements from "@/components/company/FinancialStatements";
+import ImportProgress from "@/components/company/ImportProgress";
+import type { FinancialStatements as StatementsData, Filing } from "@/lib/secEdgar";
 import { saveReport } from "@/lib/reportsClient";
 
 type Comparable = ComparableMetrics & { ticker: string; name: string };
@@ -79,6 +82,8 @@ export default function CompanyAnalyzer() {
   const [identity, setIdentity] = useState<CompanyIdentity | null>(null);
   const [inputs, setInputs] = useState<CompanyInputs>(initialInputs);
   const [sourceNotes, setSourceNotes] = useState<Record<string, FieldSource>>({});
+  const [statements, setStatements] = useState<StatementsData | null>(null);
+  const [filings, setFilings] = useState<Filing[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState("");
   const [dataMessage, setDataMessage] = useState("");
@@ -122,6 +127,8 @@ export default function CompanyAnalyzer() {
     setCompsInput("");
     setError("");
     setIdentity({ ticker: selected.ticker, name: selected.name, exchange: null, industry: null, logo: null });
+    setStatements(null);
+    setFilings([]);
     setDataLoading(true);
     setDataError("");
     setDataMessage("");
@@ -133,6 +140,8 @@ export default function CompanyAnalyzer() {
 
       setInputs((current) => ({ ...current, ...data.inputs }));
       setSourceNotes(data.sourceNotes ?? {});
+      setStatements(data.statements ?? null);
+      setFilings(data.filings ?? []);
       setIdentity({
         ticker: data.company.ticker,
         name: data.company.name,
@@ -238,6 +247,8 @@ export default function CompanyAnalyzer() {
     setIdentity(null);
     setInputs(initialInputs);
     setSourceNotes({});
+    setStatements(null);
+    setFilings([]);
     setDataError("");
     setDataMessage("");
     setComparables([]);
@@ -284,6 +295,8 @@ export default function CompanyAnalyzer() {
           <StepFinancials
             inputs={inputs}
             sourceNotes={sourceNotes}
+            statements={statements}
+            filings={filings}
             dataLoading={dataLoading}
             dataError={dataError}
             dataMessage={dataMessage}
@@ -425,6 +438,8 @@ function StepCompany({
 function StepFinancials({
   inputs,
   sourceNotes,
+  statements,
+  filings,
   dataLoading,
   dataError,
   dataMessage,
@@ -439,6 +454,8 @@ function StepFinancials({
 }: {
   inputs: CompanyInputs;
   sourceNotes: Record<string, FieldSource>;
+  statements: StatementsData | null;
+  filings: Filing[];
   dataLoading: boolean;
   dataError: string;
   dataMessage: string;
@@ -457,8 +474,8 @@ function StepFinancials({
         <div>
           <h2>Financial data</h2>
           <p className="step-lede">
-            Auto-filled from SEC filings. Each figure is tagged with its source — review anything marked
-            for manual entry.
+            Automatically imported from SEC filings — statements, filing dates, and headline figures.
+            Each key input is tagged with its source; review anything marked for manual entry.
           </p>
         </div>
         <button className="secondary step-refetch" onClick={onRefetch} disabled={dataLoading}>
@@ -466,9 +483,11 @@ function StepFinancials({
         </button>
       </div>
 
-      {dataMessage && !dataError && <div className="notice">{dataMessage}</div>}
+      {dataLoading && <ImportProgress done={false} />}
+      {dataMessage && !dataError && !dataLoading && <div className="notice">{dataMessage}</div>}
       {dataError && <div className="error">{dataError}</div>}
 
+      <h3 className="subsection-title">Key inputs</h3>
       <div className="form-grid">
         {FINANCIAL_FIELDS.map(({ key, label }) => (
           <label key={key} className={sourceNotes[key] === "not_found" ? "field-review" : ""}>
@@ -484,6 +503,13 @@ function StepFinancials({
           </label>
         ))}
       </div>
+
+      {statements && !dataLoading && (
+        <div className="statements-block">
+          <h3 className="subsection-title">Financial statements</h3>
+          <FinancialStatements statements={statements} filings={filings} />
+        </div>
+      )}
 
       <div className="comps-block">
         <h3 className="subsection-title">Comparable companies</h3>

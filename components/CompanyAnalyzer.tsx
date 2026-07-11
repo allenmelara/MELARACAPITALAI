@@ -9,6 +9,23 @@ import {
 } from "@/lib/finance";
 import { saveReport } from "@/lib/reportsClient";
 
+const FIELD_LABELS: Record<keyof CompanyInputs, string> = {
+  revenue: "Revenue",
+  ebitda: "EBITDA",
+  netIncome: "Net income",
+  cash: "Cash",
+  debt: "Debt",
+  shares: "Shares outstanding",
+  currentPrice: "Current share price",
+  growthRate: "Growth rate",
+  discountRate: "Discount rate",
+  terminalGrowthRate: "Terminal growth rate",
+  taxRate: "Tax rate",
+  depreciationPct: "Depreciation & amortization %",
+  capexPct: "Capital expenditures %",
+  nwcChangePct: "Change in net working capital %"
+};
+
 const initial: CompanyInputs = {
   revenue: 100000000,
   ebitda: 18000000,
@@ -34,11 +51,49 @@ export default function CompanyAnalyzer() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [ticker, setTicker] = useState("");
+  const [autofillLoading, setAutofillLoading] = useState(false);
+  const [autofillMessage, setAutofillMessage] = useState("");
+  const [autofillError, setAutofillError] = useState("");
 
   const metrics = useMemo(() => calculateCompanyMetrics(inputs), [inputs]);
 
   function update(key: keyof CompanyInputs, raw: string) {
     setInputs((current) => ({ ...current, [key]: Number(raw) || 0 }));
+  }
+
+  async function autofill() {
+    if (!ticker.trim()) {
+      setAutofillError("Enter a ticker symbol first.");
+      return;
+    }
+    setAutofillLoading(true);
+    setAutofillError("");
+    setAutofillMessage("");
+    try {
+      const response = await fetch(`/api/company-lookup?ticker=${encodeURIComponent(ticker.trim())}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Lookup failed");
+
+      setInputs((current) => ({ ...current, ...data.inputs }));
+      setCompany(data.company.name);
+
+      const notes = data.sourceNotes as Record<string, string>;
+      const filled = Object.keys(notes).filter((field) => notes[field] !== "not_found");
+      const missing = Object.keys(notes).filter((field) => notes[field] === "not_found");
+      const label = (field: string) => FIELD_LABELS[field as keyof CompanyInputs] ?? field;
+
+      setAutofillMessage(
+        `Autofilled ${filled.length} field${filled.length === 1 ? "" : "s"} from ${data.company.name} (${data.company.ticker})'s SEC filings and live price.` +
+          (missing.length
+            ? ` Not found in filings, please check: ${missing.map(label).join(", ")}.`
+            : "")
+      );
+    } catch (err) {
+      setAutofillError(err instanceof Error ? err.message : "Lookup failed");
+    } finally {
+      setAutofillLoading(false);
+    }
   }
 
   async function analyze() {
@@ -79,6 +134,24 @@ export default function CompanyAnalyzer() {
   return (
     <div className="panel">
       <h2>Company Valuation Lab</h2>
+
+      <div className="autofill-row">
+        <label>
+          Ticker
+          <input
+            placeholder="AAPL"
+            value={ticker}
+            onChange={(e) => setTicker(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && autofill()}
+          />
+        </label>
+        <button className="secondary" onClick={autofill} disabled={autofillLoading}>
+          {autofillLoading ? "Looking up..." : "Autofill from SEC filings"}
+        </button>
+      </div>
+      {autofillError && <div className="error">{autofillError}</div>}
+      {autofillMessage && <div className="notice">{autofillMessage}</div>}
+
       <div className="form-grid">
         <label className="full">
           Company name

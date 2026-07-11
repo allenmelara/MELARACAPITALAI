@@ -6,10 +6,20 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
+  const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/dashboard";
 
-  if (token_hash && type) {
-    const supabase = await createClient();
+  const supabase = await createClient();
+
+  // Supabase projects can be configured for either the token_hash/type flow
+  // (older email templates) or the PKCE code-exchange flow (current default)
+  // — handle whichever one shows up in the confirmation link.
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) {
+      return NextResponse.redirect(new URL(next, request.url));
+    }
+  } else if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash });
     if (!error) {
       return NextResponse.redirect(new URL(next, request.url));

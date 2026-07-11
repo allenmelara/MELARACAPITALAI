@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import CompanyAnalyzer from "@/components/CompanyAnalyzer";
 import DocumentAnalyzer from "@/components/DocumentAnalyzer";
 import RealEstateAnalyzer from "@/components/RealEstateAnalyzer";
@@ -8,8 +9,25 @@ import WealthPlanner from "@/components/WealthPlanner";
 
 type ModuleKey = "company" | "document" | "real_estate" | "wealth";
 
+const VALID_MODULES: ModuleKey[] = ["company", "document", "real_estate", "wealth"];
+
 export default function DashboardPage() {
-  const [module, setModule] = useState<ModuleKey>("company");
+  return (
+    <Suspense fallback={null}>
+      <DashboardWorkspace />
+    </Suspense>
+  );
+}
+
+function DashboardWorkspace() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requested = searchParams.get("module") as ModuleKey | null;
+  const module: ModuleKey = requested && VALID_MODULES.includes(requested) ? requested : "company";
+
+  function setModule(next: ModuleKey) {
+    router.push(`/dashboard?module=${next}`, { scroll: false });
+  }
 
   return (
     <>

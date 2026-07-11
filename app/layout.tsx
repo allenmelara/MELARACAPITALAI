@@ -1,4 +1,5 @@
 import "./globals.css";
+import SiteAssistant from "@/components/SiteAssistant";
 
 export const metadata = {
   title: "Melara Capital AI",
@@ -10,7 +11,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <SiteAssistant />
+      </body>
     </html>
   );
 }

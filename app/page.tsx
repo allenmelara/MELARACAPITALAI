@@ -1,6 +1,12 @@
 import Link from "next/link";
+import { getMarketSnapshot } from "@/lib/marketData";
+import MarketDashboard from "@/components/MarketDashboard";
 
-export default function Home() {
+export const revalidate = 60;
+
+export default async function Home() {
+  const marketSnapshot = await getMarketSnapshot();
+
   return (
     <div className="shell">
       <nav className="nav">
@@ -50,6 +56,8 @@ export default function Home() {
             </ul>
           </div>
         </section>
+
+        <MarketDashboard snapshot={marketSnapshot} />
 
         <section className="mission">
           <h2>Our Mission</h2>

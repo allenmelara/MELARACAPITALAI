@@ -3,13 +3,30 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUser } from "@/lib/supabase/server";
 import { getClientIp } from "@/lib/ip";
-import { siteAssistantSystemPrompt } from "@/lib/prompts";
+import { siteAssistantSystemPrompt, ASSISTANT_TOOLS } from "@/lib/prompts";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { logError } from "@/lib/logger";
+import { logError, logWarn } from "@/lib/logger";
+import { getQuoteChange } from "@/lib/finnhub";
+import { getMarketSnapshot } from "@/lib/marketData";
 
 export const runtime = "nodejs";
 
 const MAX_HISTORY_MESSAGES = 10;
+const MAX_TOOL_ROUNDS = 3;
+
+async function runTool(name: string, input: Record<string, unknown>): Promise<unknown> {
+  if (name === "get_stock_quote") {
+    const symbol = String(input.symbol ?? "").toUpperCase();
+    if (!symbol) return { error: "No symbol provided." };
+    const quote = await getQuoteChange(symbol);
+    if (!quote) return { error: `No quote found for ${symbol}.` };
+    return { symbol, ...quote };
+  }
+  if (name === "get_market_snapshot") {
+    return getMarketSnapshot();
+  }
+  return { error: `Unknown tool ${name}.` };
+}
 
 const bodySchema = z.object({
   message: z.string().trim().min(1, "Message is required.").max(1000),
@@ -53,20 +70,50 @@ export async function POST(request: Request) {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const recentHistory = parsed.data.history.slice(-MAX_HISTORY_MESSAGES);
 
-    const reply = await anthropic.messages.create({
-      model: process.env.CLAUDE_MODEL || "claude-sonnet-5",
-      max_tokens: 500,
-      system: siteAssistantSystemPrompt(parsed.data.context),
-      messages: [
-        ...recentHistory.map((m) => ({ role: m.role, content: m.content })),
-        { role: "user" as const, content: parsed.data.message }
-      ]
-    });
+    const messages: Anthropic.MessageParam[] = [
+      ...recentHistory.map((m) => ({ role: m.role, content: m.content })),
+      { role: "user" as const, content: parsed.data.message }
+    ];
 
-    const replyText = reply.content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join("\n");
+    let replyText = "";
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const reply = await anthropic.messages.create({
+        model: process.env.CLAUDE_MODEL || "claude-sonnet-5",
+        max_tokens: 500,
+        system: siteAssistantSystemPrompt(parsed.data.context),
+        tools: ASSISTANT_TOOLS,
+        messages
+      });
+
+      const toolUseBlocks = reply.content.filter((block) => block.type === "tool_use");
+      replyText = reply.content
+        .filter((block) => block.type === "text")
+        .map((block) => block.text)
+        .join("\n");
+
+      if (reply.stop_reason !== "tool_use" || toolUseBlocks.length === 0) {
+        break;
+      }
+
+      messages.push({ role: "assistant", content: reply.content });
+      const toolResults = await Promise.all(
+        toolUseBlocks.map(async (block) => {
+          let result: unknown;
+          try {
+            result = await runTool(block.name, block.input as Record<string, unknown>);
+          } catch (error) {
+            logWarn(`assistant.tool.${block.name}`, error);
+            result = { error: "Tool call failed." };
+          }
+          return {
+            type: "tool_result" as const,
+            tool_use_id: block.id,
+            content: JSON.stringify(result)
+          };
+        })
+      );
+      messages.push({ role: "user", content: toolResults });
+    }
 
     return NextResponse.json({ reply: replyText });
   } catch (error) {

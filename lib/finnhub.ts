@@ -22,6 +22,27 @@ export async function getQuote(symbol: string): Promise<Quote | null> {
   return { currentPrice: data.c };
 }
 
+export type QuoteChange = {
+  price: number;
+  change: number;
+  changePercent: number;
+};
+
+// Same endpoint as getQuote, but also surfaces Finnhub's own precomputed
+// change/changePercent (d, dp) instead of just the current price — used by
+// the market dashboard and the assistant's live-quote tool.
+export async function getQuoteChange(symbol: string): Promise<QuoteChange | null> {
+  const response = await fetch(
+    `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${apiKey()}`
+  );
+  if (!response.ok) {
+    throw new Error(`Finnhub quote request failed: ${response.status}`);
+  }
+  const data = (await response.json()) as { c?: number; d?: number; dp?: number };
+  if (!data.c || data.c <= 0) return null;
+  return { price: data.c, change: data.d ?? 0, changePercent: data.dp ?? 0 };
+}
+
 export type Profile = {
   sharesOutstanding: number | null;
   name: string | null;

@@ -3,6 +3,8 @@ import { Building2, FileText, Home, PiggyBank } from "lucide-react";
 import { getUser } from "@/lib/supabase/server";
 import { listReports } from "@/lib/reports";
 import { listRecentChatReports } from "@/lib/reportChat";
+import { getMarketSnapshot } from "@/lib/marketData";
+import MarketDashboard from "@/components/MarketDashboard";
 
 const MODULE_LABELS: Record<string, string> = {
   company: "Company Research",
@@ -17,10 +19,11 @@ export default async function DashboardPage({
   searchParams: Promise<{ passwordUpdated?: string }>;
 }) {
   const user = await getUser();
-  const [reports, recentChats, params] = await Promise.all([
+  const [reports, recentChats, params, marketSnapshot] = await Promise.all([
     listReports(),
     listRecentChatReports(5),
-    searchParams
+    searchParams,
+    getMarketSnapshot()
   ]);
 
   const recentReports = reports.slice(0, 5);
@@ -34,6 +37,8 @@ export default async function DashboardPage({
         <p>Continue where you left off, or start something new.</p>
         {params.passwordUpdated === "1" && <p className="notice">Your password has been updated.</p>}
       </section>
+
+      <MarketDashboard snapshot={marketSnapshot} />
 
       <section className="dash-quick-actions">
         <Link href="/dashboard/company" className="dash-action-card">

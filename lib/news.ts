@@ -124,12 +124,15 @@ async function summarizeArticles(
 }
 
 export async function getNewsFeed(userId: string): Promise<NewsFeed> {
-  const cacheKey = `news:feed:${userId}`;
-  const cached = getCached<NewsFeed>(cacheKey);
-  if (cached) return cached;
-
+  // Holdings must be read before the cache lookup — the key includes the
+  // symbol list so adding/removing a holding invalidates the cached feed
+  // immediately instead of waiting out the TTL.
   const holdings = await listHoldings();
   const symbols = [...new Set(holdings.map((h) => h.symbol))].slice(0, MAX_PORTFOLIO_SYMBOLS);
+
+  const cacheKey = `news:feed:${userId}:${[...symbols].sort().join(",")}`;
+  const cached = getCached<NewsFeed>(cacheKey);
+  if (cached) return cached;
 
   const [general, ...companyLists] = await Promise.all([
     getGeneralNewsCached(),

@@ -7,6 +7,7 @@ export type Holding = {
   symbol: string;
   shares: number;
   costBasis: number;
+  annualDividendPerShare: number;
   createdAt: string;
 };
 
@@ -19,7 +20,7 @@ export async function listHoldings(): Promise<Holding[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("holdings")
-    .select("id, symbol, shares, cost_basis, created_at")
+    .select("id, symbol, shares, cost_basis, annual_dividend_per_share, created_at")
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []).map((h) => ({
@@ -27,13 +28,14 @@ export async function listHoldings(): Promise<Holding[]> {
     symbol: h.symbol,
     shares: Number(h.shares),
     costBasis: Number(h.cost_basis),
+    annualDividendPerShare: Number(h.annual_dividend_per_share),
     createdAt: h.created_at
   }));
 }
 
 export async function addHolding(
   userId: string,
-  params: { symbol: string; shares: number; costBasis: number }
+  params: { symbol: string; shares: number; costBasis: number; annualDividendPerShare?: number }
 ): Promise<Holding> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -42,9 +44,10 @@ export async function addHolding(
       user_id: userId,
       symbol: params.symbol.toUpperCase(),
       shares: params.shares,
-      cost_basis: params.costBasis
+      cost_basis: params.costBasis,
+      annual_dividend_per_share: params.annualDividendPerShare ?? 0
     })
-    .select("id, symbol, shares, cost_basis, created_at")
+    .select("id, symbol, shares, cost_basis, annual_dividend_per_share, created_at")
     .single();
   if (error) throw error;
   return {
@@ -52,6 +55,7 @@ export async function addHolding(
     symbol: data.symbol,
     shares: Number(data.shares),
     costBasis: Number(data.cost_basis),
+    annualDividendPerShare: Number(data.annual_dividend_per_share),
     createdAt: data.created_at
   };
 }
@@ -73,6 +77,9 @@ export type PositionValuation = {
   costTotal: number;
   gainLoss: number | null;
   gainLossPercent: number | null;
+  annualDividendPerShare: number;
+  annualDividendIncome: number;
+  dividendYieldOnCost: number | null;
 };
 
 export type PortfolioHistoryPoint = {
@@ -92,6 +99,8 @@ export type PortfolioSummary = {
   allocation: Array<{ symbol: string; value: number; percent: number }>;
   history: PortfolioHistoryPoint[];
   pricesUnavailable: string[];
+  totalAnnualDividendIncome: number;
+  portfolioDividendYieldOnCost: number;
 };
 
 async function valuePositions(holdings: Holding[]): Promise<PositionValuation[]> {
@@ -107,6 +116,8 @@ async function valuePositions(holdings: Holding[]): Promise<PositionValuation[]>
       const marketValue = quote ? h.shares * quote.price : null;
       const gainLoss = marketValue !== null ? marketValue - costTotal : null;
       const gainLossPercent = marketValue !== null && costTotal > 0 ? (gainLoss! / costTotal) * 100 : null;
+      const annualDividendIncome = h.shares * h.annualDividendPerShare;
+      const dividendYieldOnCost = costTotal > 0 ? (annualDividendIncome / costTotal) * 100 : null;
       return {
         id: h.id,
         symbol: h.symbol,
@@ -117,7 +128,10 @@ async function valuePositions(holdings: Holding[]): Promise<PositionValuation[]>
         marketValue,
         costTotal,
         gainLoss,
-        gainLossPercent
+        gainLossPercent,
+        annualDividendPerShare: h.annualDividendPerShare,
+        annualDividendIncome,
+        dividendYieldOnCost
       };
     })
   );
@@ -184,6 +198,10 @@ export async function getPortfolioSummary(userId: string): Promise<PortfolioSumm
     }))
     .sort((a, b) => b.value - a.value);
 
+  const totalAnnualDividendIncome = positions.reduce((sum, p) => sum + p.annualDividendIncome, 0);
+  const portfolioDividendYieldOnCost =
+    totalCostBasis > 0 ? (totalAnnualDividendIncome / totalCostBasis) * 100 : 0;
+
   if (holdings.length > 0) {
     await recordSnapshot(userId, totalValue, totalCostBasis);
   }
@@ -198,6 +216,8 @@ export async function getPortfolioSummary(userId: string): Promise<PortfolioSumm
     dailyChange,
     dailyChangePercent,
     allocation,
+    totalAnnualDividendIncome,
+    portfolioDividendYieldOnCost,
     history,
     pricesUnavailable
   };

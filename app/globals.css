@@ -159,6 +159,7 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
 .metric { padding:16px; }
 .metric span { display:block; color:var(--muted); font-size:12px; margin-bottom:6px; }
 .metric strong { font-size:22px; }
+.dividend-yield { font-size:13px; font-weight:400; color:var(--muted); }
 .text-up { color:var(--accent); }
 .text-down { color:var(--danger); }
 

@@ -23,6 +23,7 @@ export default function PortfolioTracker({ initialSummary }: { initialSummary: P
   const [symbol, setSymbol] = useState("");
   const [shares, setShares] = useState("");
   const [costBasis, setCostBasis] = useState("");
+  const [dividendPerShare, setDividendPerShare] = useState("");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -47,13 +48,19 @@ export default function PortfolioTracker({ initialSummary }: { initialSummary: P
       const response = await fetch("/api/portfolio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol: symbol.trim(), shares: sharesNum, costBasis: costBasisNum })
+        body: JSON.stringify({
+          symbol: symbol.trim(),
+          shares: sharesNum,
+          costBasis: costBasisNum,
+          annualDividendPerShare: Number(dividendPerShare) || 0
+        })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to add holding.");
       setSymbol("");
       setShares("");
       setCostBasis("");
+      setDividendPerShare("");
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add holding.");
@@ -101,6 +108,15 @@ export default function PortfolioTracker({ initialSummary }: { initialSummary: P
           <span>Cost basis</span>
           <strong>{money(summary.totalCostBasis)}</strong>
         </div>
+        <div className="metric">
+          <span>Dividend income (annual)</span>
+          <strong>
+            {money(summary.totalAnnualDividendIncome)}
+            {summary.totalAnnualDividendIncome > 0 && (
+              <span className="dividend-yield"> ({summary.portfolioDividendYieldOnCost.toFixed(2)}% on cost)</span>
+            )}
+          </strong>
+        </div>
       </div>
 
       {summary.pricesUnavailable.length > 0 && (
@@ -136,6 +152,17 @@ export default function PortfolioTracker({ initialSummary }: { initialSummary: P
             disabled={adding}
           />
         </label>
+        <label>
+          Annual dividend/share (optional)
+          <input
+            type="number"
+            step="any"
+            value={dividendPerShare}
+            onChange={(e) => setDividendPerShare(e.target.value)}
+            placeholder="0.96"
+            disabled={adding}
+          />
+        </label>
         <div className="actions full">
           <button className="primary" type="submit" disabled={adding}>
             {adding ? "Adding..." : "Add holding"}
@@ -155,6 +182,7 @@ export default function PortfolioTracker({ initialSummary }: { initialSummary: P
               <th>Price</th>
               <th>Market value</th>
               <th>Gain/loss</th>
+              <th>Dividend/yr</th>
               <th></th>
             </tr>
           </thead>
@@ -172,6 +200,7 @@ export default function PortfolioTracker({ initialSummary }: { initialSummary: P
                     "—"
                   )}
                 </td>
+                <td>{p.annualDividendIncome > 0 ? money(p.annualDividendIncome) : "—"}</td>
                 <td>
                   <button
                     className="secondary portfolio-remove"

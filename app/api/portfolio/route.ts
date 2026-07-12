@@ -15,7 +15,8 @@ const createSchema = z.object({
     .trim()
     .regex(/^[A-Za-z.\-]{1,10}$/, "Enter a valid ticker symbol."),
   shares: z.number().positive().max(1_000_000_000),
-  costBasis: z.number().min(0).max(1_000_000_000)
+  costBasis: z.number().min(0).max(1_000_000_000),
+  annualDividendPerShare: z.number().min(0).max(1_000_000).optional()
 });
 
 export async function GET() {

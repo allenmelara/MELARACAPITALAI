@@ -172,3 +172,9 @@ create policy "Users can update their portfolio snapshots"
 on public.portfolio_snapshots for update
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+-- Dividend income (deferred from the initial Portfolio Tracker build):
+-- annual dividend per share, entered manually alongside a holding.
+alter table public.holdings add column if not exists annual_dividend_per_share numeric not null default 0;
+alter table public.holdings drop constraint if exists holdings_dividend_check;
+alter table public.holdings add constraint holdings_dividend_check check (annual_dividend_per_share >= 0);

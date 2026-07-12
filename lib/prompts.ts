@@ -199,10 +199,11 @@ ratios, and a general Buy/Hold/Sell rating), a Document Analyzer (paste or
 upload a financial document for AI analysis), a Real Estate Lab (NOI, cap
 rate, DSCR, cash-on-cash return), a Wealth Planner (savings rate, emergency
 fund, net worth and retirement projections), a Portfolio Tracker (manually
-add holdings by ticker/shares/cost basis — no brokerage account linking — to
-see total value, daily and total gain/loss, asset allocation, and a
+add holdings by ticker/shares/cost basis and an optional annual dividend per
+share — no brokerage account linking — to see total value, daily and total
+gain/loss, asset allocation, annual dividend income and yield-on-cost, and a
 performance chart that starts accumulating history from the day a holding is
-added; there's no dividend tracking yet), and a News Feed (general market
+added), and a News Feed (general market
 news plus company news for whatever's in the user's Portfolio Tracker, with
 AI-written "30-second read" summaries on the top handful of stories; Breaking
 Market News / Earnings / Fed & Policy sections are approximated by keyword

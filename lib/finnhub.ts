@@ -6,12 +6,27 @@ function apiKey(): string {
   return key;
 }
 
+// Finnhub's free tier rejects bursts of concurrent requests with 429s well
+// before the documented per-minute cap. Every caller in this module —
+// market dashboard, portfolio valuation, company lookup — goes through one
+// shared queue with a fixed gap instead of firing requests in parallel.
+const FINNHUB_GAP_MS = 200;
+let finnhubQueue: Promise<unknown> = Promise.resolve();
+
+function throttledFetch(url: string): Promise<Response> {
+  const call = finnhubQueue
+    .then(() => new Promise<void>((resolve) => setTimeout(resolve, FINNHUB_GAP_MS)))
+    .then(() => fetch(url));
+  finnhubQueue = call.catch(() => undefined);
+  return call;
+}
+
 export type Quote = {
   currentPrice: number;
 };
 
 export async function getQuote(symbol: string): Promise<Quote | null> {
-  const response = await fetch(
+  const response = await throttledFetch(
     `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${apiKey()}`
   );
   if (!response.ok) {
@@ -30,9 +45,10 @@ export type QuoteChange = {
 
 // Same endpoint as getQuote, but also surfaces Finnhub's own precomputed
 // change/changePercent (d, dp) instead of just the current price — used by
-// the market dashboard and the assistant's live-quote tool.
+// the market dashboard, the portfolio tracker, and the assistant's
+// live-quote tool.
 export async function getQuoteChange(symbol: string): Promise<QuoteChange | null> {
-  const response = await fetch(
+  const response = await throttledFetch(
     `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${apiKey()}`
   );
   if (!response.ok) {
@@ -54,7 +70,7 @@ export type Profile = {
 };
 
 export async function getProfile(symbol: string): Promise<Profile | null> {
-  const response = await fetch(
+  const response = await throttledFetch(
     `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(symbol)}&token=${apiKey()}`
   );
   if (!response.ok) {
@@ -107,7 +123,7 @@ export type SymbolSearchResult = {
 // (primary listings, where the raw symbol has no venue suffix) so the user
 // picks a filer we can actually resolve to SEC facts later.
 export async function searchSymbols(query: string): Promise<SymbolSearchResult[]> {
-  const response = await fetch(
+  const response = await throttledFetch(
     `https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${apiKey()}`
   );
   if (!response.ok) {

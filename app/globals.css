@@ -161,6 +161,19 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
 .metric strong { font-size:22px; }
 .text-up { color:var(--accent); }
 .text-down { color:var(--danger); }
+
+.portfolio-table { width:100%; border-collapse:collapse; margin:20px 0; font-size:14px; }
+.portfolio-table th { text-align:left; color:var(--muted); font-weight:600; font-size:12px; padding:8px 10px; border-bottom:1px solid var(--border); }
+.portfolio-table td { padding:10px; border-bottom:1px solid var(--border); }
+.portfolio-remove { padding:6px 10px; font-size:12px; }
+.portfolio-allocation { margin:24px 0; }
+.portfolio-allocation h3, .portfolio-chart h3 { margin:0 0 12px; font-size:16px; }
+.allocation-bar { display:flex; width:100%; height:14px; border-radius:999px; overflow:hidden; background:var(--panel); }
+.allocation-segment { height:100%; }
+.allocation-legend { list-style:none; display:flex; flex-wrap:wrap; gap:14px; margin:12px 0 0; padding:0; font-size:13px; color:var(--muted); }
+.allocation-legend li { display:flex; align-items:center; gap:6px; }
+.allocation-swatch { width:10px; height:10px; border-radius:3px; display:inline-block; }
+.portfolio-chart { margin-top:24px; }
 .verdict-card {
   display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;
   padding:20px 24px; border-radius:16px; border:1px solid var(--border); margin-top:20px;

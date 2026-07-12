@@ -38,23 +38,12 @@ export type MarketSnapshot = {
 // Finnhub call, and the free tier's rate limit is tight.
 const MOVER_UNIVERSE = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO", "JPM", "XOM"];
 
-// Finnhub's free tier rejects bursts of concurrent requests with 429s well
-// before the documented per-minute cap. Serialize every quote call through
-// one queue with a fixed gap instead of firing them all in parallel.
-const FINNHUB_GAP_MS = 200;
-let finnhubQueue: Promise<unknown> = Promise.resolve();
-
-function throttledQuote(symbol: string) {
-  const call = finnhubQueue.then(
-    () => new Promise<void>((resolve) => setTimeout(resolve, FINNHUB_GAP_MS))
-  ).then(() => getQuoteChange(symbol));
-  finnhubQueue = call.catch(() => undefined);
-  return call;
-}
-
+// getQuoteChange itself serializes concurrent Finnhub calls through one
+// shared queue (lib/finnhub.ts), so callers here can fire requests in
+// parallel without re-implementing that throttling.
 async function safeQuote(symbol: string, label: string, isProxy: boolean): Promise<MarketQuote | null> {
   try {
-    const q = await throttledQuote(symbol);
+    const q = await getQuoteChange(symbol);
     if (!q) return null;
     return { symbol, label, price: q.price, change: q.change, changePercent: q.changePercent, isProxy };
   } catch (error) {

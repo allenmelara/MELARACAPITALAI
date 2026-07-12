@@ -119,3 +119,56 @@ alter table public.usage_events add constraint usage_events_kind_check check (ki
 -- (and on Business until the user sets it) falls back to standard branding.
 alter table public.profiles add column if not exists brand_name text;
 alter table public.profiles add column if not exists brand_logo_url text;
+
+-- Portfolio Tracker: manually-entered holdings (no brokerage linking).
+-- cost_basis is stored per share; total invested = shares * cost_basis.
+create table if not exists public.holdings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  symbol text not null,
+  shares numeric not null check (shares > 0),
+  cost_basis numeric not null check (cost_basis >= 0),
+  created_at timestamptz not null default now()
+);
+
+alter table public.holdings enable row level security;
+
+create policy "Users can read their holdings"
+on public.holdings for select
+using (auth.uid() = user_id);
+
+create policy "Users can create their holdings"
+on public.holdings for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can delete their holdings"
+on public.holdings for delete
+using (auth.uid() = user_id);
+
+-- One row per user per day, upserted whenever the portfolio page is loaded,
+-- so the performance chart accumulates real history from today onward
+-- (there's no way to backfill true historical portfolio value for free).
+create table if not exists public.portfolio_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  snapshot_date date not null,
+  total_value numeric not null,
+  total_cost_basis numeric not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, snapshot_date)
+);
+
+alter table public.portfolio_snapshots enable row level security;
+
+create policy "Users can read their portfolio snapshots"
+on public.portfolio_snapshots for select
+using (auth.uid() = user_id);
+
+create policy "Users can record their portfolio snapshots"
+on public.portfolio_snapshots for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update their portfolio snapshots"
+on public.portfolio_snapshots for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);

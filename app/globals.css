@@ -174,6 +174,27 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
 .allocation-legend li { display:flex; align-items:center; gap:6px; }
 .allocation-swatch { width:10px; height:10px; border-radius:3px; display:inline-block; }
 .portfolio-chart { margin-top:24px; }
+
+.news-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+.news-tabs { display:flex; gap:8px; flex-wrap:wrap; margin:18px 0; }
+.news-tab { padding:8px 14px; font-size:13px; border-radius:999px; border:1px solid var(--border); background:transparent; color:var(--muted); }
+.news-tab.active { color:var(--text); border-color:var(--accent); background:rgba(105,229,155,.08); }
+.news-list { display:flex; flex-direction:column; gap:14px; }
+.news-card {
+  display:block; padding:16px 18px; border-radius:14px; border:1px solid var(--border);
+  background:linear-gradient(180deg, var(--panel2), var(--panel));
+}
+.news-card:hover { border-color:var(--accent); }
+.news-card h3 { margin:6px 0; font-size:16px; line-height:1.4; }
+.news-card-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; color:var(--muted); }
+.news-card-dot { opacity:.6; }
+.news-card-tag { border:1px solid var(--border); border-radius:999px; padding:1px 8px; color:var(--text); }
+.news-card-category { border-radius:999px; padding:1px 8px; }
+.news-category-fed { color:#e5c76b; border:1px solid #4a3f1f; }
+.news-category-earnings { color:#6bd4e5; border:1px solid #1f3a40; }
+.news-category-breaking { color:var(--accent); border:1px solid var(--border); }
+.news-card-summary { margin:0; color:var(--muted); font-size:14px; line-height:1.5; }
+.news-card-badge { display:inline-block; font-size:11px; font-weight:700; color:var(--accent); border:1px solid var(--border); border-radius:6px; padding:1px 6px; margin-right:6px; }
 .verdict-card {
   display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;
   padding:20px 24px; border-radius:16px; border:1px solid var(--border); margin-top:20px;

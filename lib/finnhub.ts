@@ -147,3 +147,62 @@ export async function searchSymbols(query: string): Promise<SymbolSearchResult[]
       exchangeType: item.type ?? "Common Stock"
     }));
 }
+
+export type NewsItem = {
+  id: number;
+  headline: string;
+  summary: string;
+  source: string;
+  url: string;
+  image: string | null;
+  // Unix seconds, as Finnhub returns it — left as-is so callers control
+  // conversion to whatever date type they need.
+  datetime: number;
+};
+
+function parseNewsItems(data: unknown): NewsItem[] {
+  const items = data as Array<{
+    id?: number;
+    headline?: string;
+    summary?: string;
+    source?: string;
+    url?: string;
+    image?: string;
+    datetime?: number;
+  }>;
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((item) => item.id !== undefined && item.headline && item.url && item.datetime)
+    .map((item) => ({
+      id: item.id as number,
+      headline: item.headline as string,
+      summary: item.summary ?? "",
+      source: item.source ?? "Unknown",
+      url: item.url as string,
+      image: item.image || null,
+      datetime: item.datetime as number
+    }));
+}
+
+export async function getGeneralNews(): Promise<NewsItem[]> {
+  const response = await throttledFetch(`https://finnhub.io/api/v1/news?category=general&token=${apiKey()}`);
+  if (!response.ok) {
+    throw new Error(`Finnhub news request failed: ${response.status}`);
+  }
+  return parseNewsItems(await response.json());
+}
+
+// Finnhub requires an explicit from/to window for company news; default to
+// the trailing week so recently-added holdings still surface something.
+export async function getCompanyNews(symbol: string, days = 7): Promise<NewsItem[]> {
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const response = await throttledFetch(
+    `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(symbol)}&from=${fmt(from)}&to=${fmt(to)}&token=${apiKey()}`
+  );
+  if (!response.ok) {
+    throw new Error(`Finnhub company news request failed: ${response.status}`);
+  }
+  return parseNewsItems(await response.json());
+}

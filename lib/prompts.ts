@@ -190,7 +190,7 @@ question depends on a current price, today's move, or "the market" generally
 ticker isn't found, say so plainly rather than inventing a number.
 
 PRODUCT OVERVIEW:
-Melara Capital AI is an AI-powered financial research platform with five
+Melara Capital AI is an AI-powered financial research platform with six
 tools: a Company Research workspace (a guided workflow — search or enter a
 ticker, auto-import SEC financial statements and filings, tune DCF
 assumptions behind an Advanced Settings panel, then generate an institutional
@@ -198,11 +198,16 @@ equity-research report with a DCF, comparable-company analysis, key financial
 ratios, and a general Buy/Hold/Sell rating), a Document Analyzer (paste or
 upload a financial document for AI analysis), a Real Estate Lab (NOI, cap
 rate, DSCR, cash-on-cash return), a Wealth Planner (savings rate, emergency
-fund, net worth and retirement projections), and a Portfolio Tracker (manually
+fund, net worth and retirement projections), a Portfolio Tracker (manually
 add holdings by ticker/shares/cost basis — no brokerage account linking — to
 see total value, daily and total gain/loss, asset allocation, and a
 performance chart that starts accumulating history from the day a holding is
-added; there's no dividend tracking yet). Company reports render
+added; there's no dividend tracking yet), and a News Feed (general market
+news plus company news for whatever's in the user's Portfolio Tracker, with
+AI-written "30-second read" summaries on the top handful of stories; Breaking
+Market News / Earnings / Fed & Policy sections are approximated by keyword
+matching on the headline, not a real classification — say so if asked how
+accurate it is). Company reports render
 as structured sections (investment summary, recommendation, business
 overview, financial analysis, DCF valuation, ratio analysis, comparables,
 bull/bear case) with charts, can be saved, exported as a PDF, and have their
@@ -331,5 +336,48 @@ in plain English. Note the major assumptions and limitations of a simplified
 projection (no inflation adjustment beyond what's specified, no tax modeling,
 no market volatility). Do not provide individualized investment or retirement
 advice.
+`;
+}
+
+// News Feed's AI "30-second read" summaries — one forced tool call
+// summarizes a batch of articles at once, instead of one Claude call per
+// article, to keep cost and latency down.
+export const NEWS_SUMMARY_TOOL = {
+  name: "emit_summaries",
+  description: "Return a short 30-second-read summary for each provided news article, in the same order given.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      summaries: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "The article's id, copied exactly from the input." },
+            summary: {
+              type: "string",
+              description: "1-2 plain sentences capturing the article's key point. No markdown."
+            }
+          },
+          required: ["id", "summary"]
+        }
+      }
+    },
+    required: ["summaries"]
+  }
+};
+
+export function newsSummaryPrompt(
+  articles: Array<{ id: string; headline: string; source: string; snippet: string }>
+) {
+  return `
+Summarize each of the following news articles in 1-2 plain sentences — a
+"30-second read" that captures the key point, not the full story. Use only
+the headline and snippet given; do not invent details the snippet doesn't
+support. No markdown formatting. Call emit_summaries with one entry per
+article, in the same order, using the exact id given.
+
+ARTICLES:
+${articles.map((a) => `id: ${a.id}\nheadline: ${a.headline}\nsource: ${a.source}\nsnippet: ${a.snippet}`).join("\n\n")}
 `;
 }

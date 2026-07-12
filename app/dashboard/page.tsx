@@ -11,9 +11,17 @@ const MODULE_LABELS: Record<string, string> = {
   wealth: "Wealth Planner"
 };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams
+}: {
+  searchParams: Promise<{ passwordUpdated?: string }>;
+}) {
   const user = await getUser();
-  const [reports, recentChats] = await Promise.all([listReports(), listRecentChatReports(5)]);
+  const [reports, recentChats, params] = await Promise.all([
+    listReports(),
+    listRecentChatReports(5),
+    searchParams
+  ]);
 
   const recentReports = reports.slice(0, 5);
   const recentDocuments = reports.filter((r) => r.module === "document").slice(0, 5);
@@ -24,6 +32,7 @@ export default async function DashboardPage() {
       <section className="dash-header">
         <h1>Welcome back{firstName ? `, ${firstName}` : ""}.</h1>
         <p>Continue where you left off, or start something new.</p>
+        {params.passwordUpdated === "1" && <p className="notice">Your password has been updated.</p>}
       </section>
 
       <section className="dash-quick-actions">

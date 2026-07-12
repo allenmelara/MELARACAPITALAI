@@ -12,6 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.67.0",
     "@react-pdf/renderer": "^4.5.1",
+    "@sentry/nextjs": "^10.65.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.0",
     "lucide-react": "^0.468.0",

@@ -2,12 +2,12 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { signUp, type AuthState } from "@/app/auth/actions";
+import { requestPasswordReset, type AuthState } from "@/app/auth/actions";
 
 const initialState: AuthState = { error: "" };
 
-export default function SignupPage() {
-  const [state, formAction, pending] = useActionState(signUp, initialState);
+export default function ForgotPasswordPage() {
+  const [state, formAction, pending] = useActionState(requestPasswordReset, initialState);
 
   return (
     <div className="shell">
@@ -18,29 +18,24 @@ export default function SignupPage() {
       </nav>
       <main className="main">
         <div className="panel auth-card">
-          <h2>Create your account</h2>
+          <h2>Reset your password</h2>
+          <p className="disclaimer">
+            Enter your account email and we&apos;ll send you a link to set a new password.
+          </p>
           <form action={formAction} className="form-grid">
             <label className="full">
               Email
               <input type="email" name="email" required autoComplete="email" />
             </label>
-            <label className="full">
-              Password
-              <input type="password" name="password" required autoComplete="new-password" minLength={8} />
-            </label>
             {state.error && <div className="error full">{state.error}</div>}
             <div className="actions full">
               <button className="primary" type="submit" disabled={pending}>
-                {pending ? "Creating account..." : "Sign up"}
+                {pending ? "Sending..." : "Send reset link"}
               </button>
             </div>
           </form>
           <p className="link-muted">
-            Already have an account? <Link href="/login">Log in</Link>
-          </p>
-          <p className="auth-legal-note">
-            By signing up, you agree to our <Link href="/terms">Terms of Service</Link> and{" "}
-            <Link href="/privacy">Privacy Policy</Link>.
+            <Link href="/login">Back to log in</Link>
           </p>
         </div>
       </main>

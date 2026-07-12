@@ -136,8 +136,8 @@ export default function TermsPage() {
 
           <h2>10. Governing Law</h2>
           <p>
-            These Terms are governed by the laws of [Insert your governing state/jurisdiction],
-            without regard to conflict-of-law principles.
+            These Terms are governed by the laws of the State of Florida, without regard to
+            conflict-of-law principles.
           </p>
 
           <h2>11. Contact</h2>

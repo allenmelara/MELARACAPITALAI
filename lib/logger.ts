@@ -1,3 +1,5 @@
+import * as Sentry from "@sentry/nextjs";
+
 type Level = "info" | "warn" | "error";
 
 function write(level: Level, scope: string, error?: unknown) {
@@ -9,9 +11,12 @@ function write(level: Level, scope: string, error?: unknown) {
 }
 
 // Logs error type/message and a scope label only — never the request payload,
-// since these routes carry user financial data.
+// since these routes carry user financial data. Also reports to Sentry (a
+// no-op if NEXT_PUBLIC_SENTRY_DSN isn't configured) so failures surface
+// somewhere other than Vercel's console logs.
 export function logError(scope: string, error: unknown) {
   write("error", scope, error);
+  Sentry.captureException(error, { tags: { scope } });
 }
 
 export function logWarn(scope: string, error?: unknown) {

@@ -96,6 +96,15 @@ export default function Home() {
           </div>
         </section>
       </main>
+
+      <footer className="site-footer">
+        <span className="site-footer-copyright">© 2026 Melara Capital AI. Educational use only — not investment advice.</span>
+        <div className="site-footer-links">
+          <Link href="/terms">Terms of Service</Link>
+          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/pricing">Pricing</Link>
+        </div>
+      </footer>
     </div>
   );
 }

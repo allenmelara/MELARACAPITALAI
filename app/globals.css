@@ -505,3 +505,25 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
 .pricing-comparison-yes { color:var(--accent); }
 .pricing-comparison-no { color:var(--muted); opacity:.5; }
 @media (max-width: 560px) { .pricing-comparison-table td, .pricing-comparison-table th { padding:10px 12px; } }
+
+/* Legal pages (Terms, Privacy) */
+.legal-page { max-width:760px; margin:0 auto; padding-bottom:40px; }
+.legal-page h1 { font-size:clamp(28px, 4vw, 40px); letter-spacing:-.03em; margin:0 0 8px; }
+.legal-page .legal-updated { color:var(--muted); font-size:13px; margin:0 0 32px; }
+.legal-page h2 { font-size:19px; letter-spacing:-.01em; margin:32px 0 12px; }
+.legal-page p { color:var(--muted); line-height:1.7; margin:0 0 14px; font-size:15px; }
+.legal-page ul { color:var(--muted); line-height:1.8; margin:0 0 14px; padding-left:22px; font-size:15px; }
+.legal-page a { color:var(--accent); text-decoration:underline; }
+.legal-page strong { color:var(--text); }
+
+/* Simple public-page footer */
+.site-footer {
+  width:min(1180px, 92vw); margin:60px auto 0; border-top:1px solid var(--border); padding:28px 0 40px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
+}
+.site-footer-links { display:flex; gap:20px; flex-wrap:wrap; }
+.site-footer-links a { color:var(--muted); font-size:13px; }
+.site-footer-links a:hover { color:var(--text); }
+.site-footer-copyright { color:var(--muted); font-size:13px; }
+.auth-legal-note { color:var(--muted); font-size:12px; margin-top:16px; line-height:1.5; }
+.auth-legal-note a { color:var(--accent); }

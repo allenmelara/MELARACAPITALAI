@@ -230,6 +230,9 @@ Rules:
    educational, not a personal recommendation, and suggest the Company
    Research workspace for a full DCF-backed rating.
 4. Keep answers short and conversational — a few sentences, not a report.
+5. This widget renders plain text, not markdown — never use **bold**,
+   _italics_, backticks, or other markdown syntax. Write plain sentences, and
+   use a simple "- " prefix for a list item if you need one.
 `;
 }
 

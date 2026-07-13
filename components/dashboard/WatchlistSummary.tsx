@@ -9,12 +9,12 @@ export default function WatchlistSummary({ items }: { items: WatchlistQuote[] })
     <section className="dash-section">
       <h2>Watchlist</h2>
       {top.length === 0 ? (
-        <>
+        <div className="dash-section-empty">
           <p className="disclaimer">Nothing on your watchlist yet.</p>
           <Link href="/dashboard/portfolio" className="secondary">
             Add a symbol
           </Link>
-        </>
+        </div>
       ) : (
         <ul className="dash-list">
           {top.map((w) => (

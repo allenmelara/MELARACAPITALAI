@@ -153,9 +153,14 @@ a { color: inherit; text-decoration: none; }
 .dash-columns { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; }
 .dash-section {
   background:linear-gradient(180deg, var(--panel2), var(--panel)); border:1px solid var(--border);
-  border-radius:16px; padding:20px;
+  border-radius:16px; padding:20px; display:flex; flex-direction:column;
 }
 .dash-section h2 { margin:0 0 14px; font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+.dash-section-empty {
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; gap:14px; padding-top:4px;
+}
+.dash-section-empty .disclaimer { margin:0; }
 .dash-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; }
 .dash-list a { display:flex; flex-direction:column; gap:2px; padding:10px; border-radius:10px; }
 .dash-list a:hover { background:rgba(255,255,255,.03); }

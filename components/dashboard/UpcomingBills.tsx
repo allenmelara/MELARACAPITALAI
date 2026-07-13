@@ -9,12 +9,12 @@ export default function UpcomingBills({ bills }: { bills: UpcomingBill[] }) {
     <section className="dash-section">
       <h2>Upcoming bills</h2>
       {upcoming.length === 0 ? (
-        <>
+        <div className="dash-section-empty">
           <p className="disclaimer">No bills tracked yet.</p>
           <Link href="/dashboard/accounts" className="secondary">
             Add a bill
           </Link>
-        </>
+        </div>
       ) : (
         <ul className="dash-list">
           {upcoming.map((b) => (

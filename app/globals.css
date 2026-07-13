@@ -692,3 +692,64 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
 .onboarding-nudge { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:24px; padding:16px 18px; }
 .onboarding-nudge-actions { display:flex; gap:10px; flex-shrink:0; }
 @media (max-width: 560px) { .onboarding-chip-grid { grid-template-columns:1fr; } }
+
+/* Notification bell */
+.notification-bell-wrap { position:fixed; top:20px; right:24px; z-index:40; }
+.notification-bell-toggle {
+  position:relative; background:linear-gradient(180deg, var(--panel2), var(--panel)); border:1px solid var(--border);
+  color:var(--text); border-radius:999px; width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.25);
+}
+.notification-bell-badge {
+  position:absolute; top:-4px; right:-4px; background:var(--accent); color:#051008; font-size:10px; font-weight:700;
+  border-radius:999px; min-width:16px; height:16px; padding:0 4px; display:flex; align-items:center; justify-content:center;
+}
+.notification-bell-panel {
+  position:absolute; top:48px; right:0; width:min(340px, 90vw); max-height:60vh; overflow-y:auto;
+  background:linear-gradient(180deg, var(--panel2), var(--panel)); border:1px solid var(--border); border-radius:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,.5); padding:16px;
+}
+.notification-bell-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.notification-bell-mark-all { background:transparent; border:none; color:var(--accent); font-size:12px; cursor:pointer; padding:0; }
+.notification-bell-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.notification-bell-item { padding:10px; border-radius:10px; border:1px solid var(--border); cursor:pointer; display:flex; flex-direction:column; gap:2px; }
+.notification-bell-item.unread { box-shadow:0 0 0 1px var(--accent) inset; }
+.notification-bell-item-title { font-weight:700; font-size:13px; }
+.notification-bell-item-body { color:var(--muted); font-size:12px; }
+.notification-bell-item-time { color:var(--muted); font-size:11px; }
+@media (max-width: 768px) {
+  /* .dash-mobile-topbar is 60px tall and fixed at the very top — sit below it
+     instead of overlapping the hamburger/logo. */
+  .notification-bell-wrap { top:70px; right:12px; }
+}
+
+/* Financial Health Score */
+.health-score-overall { display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+.health-score-number { font-size:48px; font-weight:800; letter-spacing:-.03em; color:var(--accent); }
+.health-score-max { font-size:20px; color:var(--muted); }
+.health-score-section-heading { font-size:18px; margin:28px 0 14px; letter-spacing:-.01em; }
+.health-score-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; }
+.health-score-category { padding:18px; }
+.health-score-explanation { margin:10px 0 8px; }
+.health-score-improve { margin:0; }
+@media (max-width: 820px) { .health-score-grid { grid-template-columns:1fr; } }
+.health-score-summary-tile {
+  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  margin-bottom:16px; cursor:pointer;
+}
+.dash-metric-tile-label { display:block; color:var(--muted); font-size:12px; margin-bottom:6px; }
+.health-score-number-compact { font-size:32px; }
+.health-score-summary-cta { color:var(--accent); font-size:13px; font-weight:600; white-space:nowrap; }
+
+/* Missions */
+.missions-list { margin-top:16px; }
+.mission-row { display:flex; align-items:center; gap:8px; }
+.mission-row-link { flex:1; display:flex; flex-direction:column; gap:2px; padding:10px; border-radius:10px; }
+.mission-row-link:hover { background:rgba(255,255,255,.03); }
+.mission-dismiss { background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--muted); padding:6px; display:flex; flex-shrink:0; }
+.mission-dismiss:hover { color:var(--text); border-color:var(--accent); }
+
+/* Celebrations — deliberately understated: no animation, no color beyond the
+   existing .notice accent, no icon. */
+.celebration-banner { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.celebration-dismiss { background:transparent; border:none; color:var(--accent); font-size:18px; line-height:1; cursor:pointer; padding:0 4px; }

@@ -40,6 +40,12 @@ export type FinancialProfile = {
   realEstateInterest: boolean | null;
   businessOwnershipInterest: boolean | null;
   usedEstimatedValues: boolean;
+  // Self-reported coverage flags, null = unanswered (not "no coverage") —
+  // feeds the Financial Health Score's "insurance readiness" category.
+  hasHealthInsurance: boolean | null;
+  hasLifeInsurance: boolean | null;
+  hasDisabilityInsurance: boolean | null;
+  hasHomeOrRentersInsurance: boolean | null;
   consentGivenAt: string | null;
   consentVersion: string | null;
   onboardingCompletedAt: string | null;
@@ -65,6 +71,10 @@ export const financialProfileInputSchema = z.object({
   realEstateInterest: z.boolean().nullable().optional(),
   businessOwnershipInterest: z.boolean().nullable().optional(),
   usedEstimatedValues: z.boolean().optional(),
+  hasHealthInsurance: z.boolean().nullable().optional(),
+  hasLifeInsurance: z.boolean().nullable().optional(),
+  hasDisabilityInsurance: z.boolean().nullable().optional(),
+  hasHomeOrRentersInsurance: z.boolean().nullable().optional(),
   // Flags, not stored fields — true tells the route to stamp the matching
   // timestamp columns with the current time rather than accepting a
   // client-supplied date.
@@ -90,6 +100,10 @@ type FinancialProfileRow = {
   real_estate_interest: boolean | null;
   business_ownership_interest: boolean | null;
   used_estimated_values: boolean;
+  has_health_insurance: boolean | null;
+  has_life_insurance: boolean | null;
+  has_disability_insurance: boolean | null;
+  has_home_or_renters_insurance: boolean | null;
   consent_given_at: string | null;
   consent_version: string | null;
   onboarding_completed_at: string | null;
@@ -100,7 +114,8 @@ type FinancialProfileRow = {
 const COLUMNS =
   "age_range, income_range, monthly_expenses_range, savings_range, debts_range, goals, " +
   "emergency_fund_goal_months, retirement_goal_age, time_horizon, risk_tolerance, investment_experience, " +
-  "real_estate_interest, business_ownership_interest, used_estimated_values, consent_given_at, " +
+  "real_estate_interest, business_ownership_interest, used_estimated_values, has_health_insurance, " +
+  "has_life_insurance, has_disability_insurance, has_home_or_renters_insurance, consent_given_at, " +
   "consent_version, onboarding_completed_at, onboarding_skipped, updated_at";
 
 function toProfile(row: FinancialProfileRow): FinancialProfile {
@@ -120,6 +135,10 @@ function toProfile(row: FinancialProfileRow): FinancialProfile {
     realEstateInterest: row.real_estate_interest,
     businessOwnershipInterest: row.business_ownership_interest,
     usedEstimatedValues: row.used_estimated_values,
+    hasHealthInsurance: row.has_health_insurance,
+    hasLifeInsurance: row.has_life_insurance,
+    hasDisabilityInsurance: row.has_disability_insurance,
+    hasHomeOrRentersInsurance: row.has_home_or_renters_insurance,
     consentGivenAt: row.consent_given_at,
     consentVersion: row.consent_version,
     onboardingCompletedAt: row.onboarding_completed_at,
@@ -157,6 +176,10 @@ export async function upsertFinancialProfile(
     real_estate_interest: input.realEstateInterest,
     business_ownership_interest: input.businessOwnershipInterest,
     used_estimated_values: input.usedEstimatedValues,
+    has_health_insurance: input.hasHealthInsurance,
+    has_life_insurance: input.hasLifeInsurance,
+    has_disability_insurance: input.hasDisabilityInsurance,
+    has_home_or_renters_insurance: input.hasHomeOrRentersInsurance,
     onboarding_skipped: input.onboardingSkipped,
     updated_at: new Date().toISOString()
   };

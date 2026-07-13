@@ -31,6 +31,7 @@ import DebtPayoffChart from "@/components/dashboard/DebtPayoffChart";
 import InvestmentAllocationChart from "@/components/dashboard/InvestmentAllocationChart";
 import GoalProjectionChart from "@/components/dashboard/GoalProjectionChart";
 import RecommendationsCard from "@/components/dashboard/RecommendationsCard";
+import HealthScoreSection from "@/components/dashboard/HealthScoreSection";
 
 const MODULE_LABELS: Record<string, string> = {
   company: "Company Research",
@@ -104,6 +105,10 @@ export default async function DashboardPage({
       </section>
 
       <OnboardingNudge eligible={showOnboardingNudge} />
+
+      <div style={{ marginBottom: 20 }}>
+        <HealthScoreSection />
+      </div>
 
       <NetWorthSummary
         netWorth={netWorth}

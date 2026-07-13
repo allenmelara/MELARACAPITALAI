@@ -228,6 +228,14 @@ create policy "Users can delete their financial profile"
 on public.financial_profiles for delete
 using (auth.uid() = user_id);
 
+-- Phase 4: self-reported insurance coverage flags for the Financial Health
+-- Score's "insurance readiness" category. Nullable — unanswered, not "no
+-- coverage" — same coarse self-reported philosophy as the rest of this table.
+alter table public.financial_profiles add column if not exists has_health_insurance boolean;
+alter table public.financial_profiles add column if not exists has_life_insurance boolean;
+alter table public.financial_profiles add column if not exists has_disability_insurance boolean;
+alter table public.financial_profiles add column if not exists has_home_or_renters_insurance boolean;
+
 -- Phase 2: Personal Finance Dashboard. Every table below is manual-entry
 -- (no bank/brokerage linking) and follows the same uuid PK / user_id FK+cascade
 -- / full-CRUD-RLS conventions as public.holdings and public.financial_profiles.
@@ -418,3 +426,68 @@ alter table public.coach_messages enable row level security;
 
 create policy "Users can read their coach messages" on public.coach_messages for select using (auth.uid() = user_id);
 create policy "Users can create their coach messages" on public.coach_messages for insert with check (auth.uid() = user_id);
+
+-- Phase 4: Engagement. Financial Health Score history, in-app notifications
+-- (created by the daily cron job and by in-app events), and per-user
+-- notification channel/type preferences.
+
+-- Mirrors public.net_worth_snapshots exactly — upserted whenever the score is
+-- computed (dashboard load or the daily cron), giving a score-over-time trend
+-- for free. overall_score is nullable: null means no category had enough
+-- data yet to compute a score at all (shown as a "get started" empty state,
+-- never a punishing 0).
+create table if not exists public.health_score_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  snapshot_date date not null,
+  overall_score numeric,
+  category_scores jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (user_id, snapshot_date)
+);
+
+alter table public.health_score_snapshots enable row level security;
+
+create policy "Users can read their health score snapshots" on public.health_score_snapshots for select using (auth.uid() = user_id);
+create policy "Users can create their health score snapshots" on public.health_score_snapshots for insert with check (auth.uid() = user_id);
+create policy "Users can update their health score snapshots" on public.health_score_snapshots for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null check (type in ('daily_checkin', 'weekly_recap', 'monthly_report', 'goal_milestone', 'streak_milestone', 'score_change', 'budget_challenge')),
+  title text not null,
+  body text not null,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table public.notifications enable row level security;
+
+create policy "Users can read their notifications" on public.notifications for select using (auth.uid() = user_id);
+create policy "Users can create their notifications" on public.notifications for insert with check (auth.uid() = user_id);
+create policy "Users can update their notifications" on public.notifications for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete their notifications" on public.notifications for delete using (auth.uid() = user_id);
+
+-- One row per user (like public.financial_profiles) — every toggle defaults
+-- true, but nothing is actually sent anywhere until the cron job (Part G)
+-- and email (Part H) ship, so enabling everything today is a no-op.
+create table if not exists public.notification_preferences (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  daily_checkin boolean not null default true,
+  weekly_recap boolean not null default true,
+  monthly_report boolean not null default true,
+  goal_milestone boolean not null default true,
+  streak_milestone boolean not null default true,
+  score_change boolean not null default true,
+  budget_challenge boolean not null default true,
+  email_enabled boolean not null default true,
+  in_app_enabled boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.notification_preferences enable row level security;
+
+create policy "Users can read their notification preferences" on public.notification_preferences for select using (auth.uid() = user_id);
+create policy "Users can create their notification preferences" on public.notification_preferences for insert with check (auth.uid() = user_id);
+create policy "Users can update their notification preferences" on public.notification_preferences for update using (auth.uid() = user_id) with check (auth.uid() = user_id);

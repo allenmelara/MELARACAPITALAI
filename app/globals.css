@@ -746,6 +746,9 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
 .mission-row { display:flex; align-items:center; gap:8px; }
 .mission-row-link { flex:1; display:flex; flex-direction:column; gap:2px; padding:10px; border-radius:10px; }
 .mission-row-link:hover { background:rgba(255,255,255,.03); }
+/* .dash-list-meta is normally a short capitalized tag (e.g. "Company Research · 7/13/2026")
+   — override that transform here since mission descriptions are full sentences. */
+.mission-row-link .dash-list-meta { text-transform:none; }
 .mission-dismiss { background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--muted); padding:6px; display:flex; flex-shrink:0; }
 .mission-dismiss:hover { color:var(--text); border-color:var(--accent); }
 

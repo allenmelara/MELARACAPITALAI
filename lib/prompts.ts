@@ -189,6 +189,10 @@ question depends on a current price, today's move, or "the market" generally
 — never guess or recall a price from memory. If a tool call fails or a
 ticker isn't found, say so plainly rather than inventing a number.
 
+You also have get_news_headlines, which returns the user's actual News Feed
+content — use it for any question about "my feed," specific headlines, or
+what's currently in the news, instead of saying you can't see the page.
+
 PRODUCT OVERVIEW:
 Melara Capital AI is an AI-powered financial research platform with six
 tools: a Company Research workspace (a guided workflow — search or enter a
@@ -268,6 +272,21 @@ export const ASSISTANT_TOOLS = [
     input_schema: {
       type: "object" as const,
       properties: {}
+    }
+  },
+  {
+    name: "get_news_headlines",
+    description:
+      "Get the user's actual personalized News Feed headlines (general market news plus company news for their Portfolio Tracker holdings), with AI summaries where available. Use this whenever asked about 'my feed', 'the top story', 'what's in the news', or similar — only signed-in users have a feed, so check for an error if the user isn't logged in.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          enum: ["breaking", "earnings", "fed"],
+          description: "Optional — filter to one section instead of returning all categories."
+        }
+      }
     }
   }
 ];

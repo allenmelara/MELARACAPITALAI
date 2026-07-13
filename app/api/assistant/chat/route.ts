@@ -8,13 +8,15 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import { logError, logWarn } from "@/lib/logger";
 import { getQuoteChange } from "@/lib/finnhub";
 import { getMarketSnapshot } from "@/lib/marketData";
+import { getNewsFeed } from "@/lib/news";
 
 export const runtime = "nodejs";
 
 const MAX_HISTORY_MESSAGES = 10;
 const MAX_TOOL_ROUNDS = 3;
+const MAX_HEADLINES_FOR_MODEL = 15;
 
-async function runTool(name: string, input: Record<string, unknown>): Promise<unknown> {
+async function runTool(name: string, input: Record<string, unknown>, userId: string | null): Promise<unknown> {
   if (name === "get_stock_quote") {
     const symbol = String(input.symbol ?? "").toUpperCase();
     if (!symbol) return { error: "No symbol provided." };
@@ -24,6 +26,23 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<un
   }
   if (name === "get_market_snapshot") {
     return getMarketSnapshot();
+  }
+  if (name === "get_news_headlines") {
+    if (!userId) return { error: "Not logged in — the News Feed is only available to signed-in users." };
+    const category = typeof input.category === "string" ? input.category : undefined;
+    const feed = await getNewsFeed(userId);
+    const articles = category ? feed.articles.filter((a) => a.category === category) : feed.articles;
+    return {
+      generatedAt: feed.generatedAt,
+      articles: articles.slice(0, MAX_HEADLINES_FOR_MODEL).map((a) => ({
+        headline: a.headline,
+        source: a.source,
+        category: a.category,
+        relatedSymbol: a.relatedSymbol,
+        summary: a.aiSummary ?? a.snippet,
+        publishedAt: a.publishedAt
+      }))
+    };
   }
   return { error: `Unknown tool ${name}.` };
 }
@@ -100,7 +119,7 @@ export async function POST(request: Request) {
         toolUseBlocks.map(async (block) => {
           let result: unknown;
           try {
-            result = await runTool(block.name, block.input as Record<string, unknown>);
+            result = await runTool(block.name, block.input as Record<string, unknown>, user?.id ?? null);
           } catch (error) {
             logWarn(`assistant.tool.${block.name}`, error);
             result = { error: "Tool call failed." };

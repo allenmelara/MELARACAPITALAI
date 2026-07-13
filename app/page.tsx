@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getMarketSnapshot } from "@/lib/marketData";
 import MarketDashboard from "@/components/MarketDashboard";
 
@@ -11,6 +12,7 @@ export default async function Home() {
     <div className="shell">
       <nav className="nav">
         <div className="brand">
+          <Image src="/logo.png" alt="" width={28} height={28} className="brand-logo" priority />
           Melara Capital <span>AI</span>
         </div>
         <div className="nav-actions">

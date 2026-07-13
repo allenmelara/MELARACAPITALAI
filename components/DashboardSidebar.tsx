@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -62,7 +63,8 @@ export default function DashboardSidebar({ email, plan }: { email: string; plan:
     <aside className={`dash-sidebar ${collapsed ? "collapsed" : ""}`}>
       <div className="dash-sidebar-top">
         <Link href="/" className="brand">
-          {collapsed ? "M" : (
+          <Image src="/logo.png" alt="" width={24} height={24} className="brand-logo" />
+          {!collapsed && (
             <>
               Melara Capital <span>AI</span>
             </>

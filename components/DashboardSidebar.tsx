@@ -18,13 +18,17 @@ import {
   Settings,
   BarChart3,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  Menu,
+  X,
+  UserCircle
 } from "lucide-react";
 import { signOutAction } from "@/app/auth/actions";
 import type { Plan } from "@/lib/profile";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/dashboard/onboarding", label: "Financial Profile", icon: UserCircle },
   { href: "/dashboard/company", label: "Company Research", icon: Building2 },
   { href: "/dashboard/documents", label: "Document Analysis", icon: FileText },
   { href: "/dashboard/real-estate", label: "Real Estate", icon: Home },
@@ -47,11 +51,18 @@ const STORAGE_KEY = "melara:sidebar-collapsed";
 export default function DashboardSidebar({ email, plan }: { email: string; plan: Plan }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === "1") setCollapsed(true);
   }, []);
+
+  // The sidebar lives in the layout and doesn't remount on navigation, so the
+  // mobile drawer needs to close itself whenever the route changes.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   function toggle() {
     setCollapsed((current) => {
@@ -61,56 +72,86 @@ export default function DashboardSidebar({ email, plan }: { email: string; plan:
     });
   }
 
+  const navItems =
+    // BUSINESS_NAV_ITEM is spliced in before "Billing" — bump both indices below if NAV_ITEMS gains
+    // or loses an entry earlier in the array.
+    plan === "business" ? [...NAV_ITEMS.slice(0, 10), BUSINESS_NAV_ITEM, ...NAV_ITEMS.slice(10)] : NAV_ITEMS;
+
   return (
-    <aside className={`dash-sidebar ${collapsed ? "collapsed" : ""}`}>
-      <div className="dash-sidebar-top">
-        <Link href="/" className="brand">
-          <Image src="/logo.png" alt="" width={24} height={24} className="brand-logo" />
-          {!collapsed && (
-            <>
-              Melara Capital <span>AI</span>
-            </>
-          )}
-        </Link>
-        <button className="dash-sidebar-toggle" onClick={toggle} aria-label="Toggle sidebar">
-          {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+    <>
+      <div className="dash-mobile-topbar">
+        <button
+          className="dash-mobile-topbar-toggle"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
         </button>
+        <Link href="/" className="brand">
+          <Image src="/logo.png" alt="" width={22} height={22} className="brand-logo" />
+          Melara Capital <span>AI</span>
+        </Link>
+        <span aria-hidden style={{ width: 36 }} />
       </div>
 
-      <nav className="dash-nav">
-        {(plan === "business"
-          ? [...NAV_ITEMS.slice(0, 9), BUSINESS_NAV_ITEM, ...NAV_ITEMS.slice(9)]
-          : NAV_ITEMS
-        ).map((item) => {
-          const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`dash-nav-item ${isActive ? "active" : ""}`}
-              title={collapsed ? item.label : undefined}
-            >
-              <Icon size={18} />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
-      </nav>
+      {mobileOpen && (
+        <div className="dash-sidebar-backdrop" onClick={() => setMobileOpen(false)} aria-hidden />
+      )}
 
-      <div className="dash-sidebar-bottom">
-        {plan === "free" && (
-          <Link href="/pricing" className="primary dash-upgrade">
-            {collapsed ? "↑" : "Upgrade to Pro"}
+      <aside className={`dash-sidebar ${collapsed ? "collapsed" : ""} ${mobileOpen ? "mobile-open" : ""}`}>
+        <div className="dash-sidebar-top">
+          <Link href="/" className="brand">
+            <Image src="/logo.png" alt="" width={24} height={24} className="brand-logo" />
+            {!collapsed && (
+              <>
+                Melara Capital <span>AI</span>
+              </>
+            )}
           </Link>
-        )}
-        {!collapsed && <span className="dash-sidebar-email">{email}</span>}
-        <form action={signOutAction}>
-          <button className="secondary dash-sidebar-signout" type="submit">
-            {collapsed ? "⏻" : "Sign out"}
+          <button className="dash-sidebar-toggle" onClick={toggle} aria-label="Toggle sidebar">
+            {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
           </button>
-        </form>
-      </div>
-    </aside>
+          <button
+            className="dash-sidebar-close"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <nav className="dash-nav">
+          {navItems.map((item) => {
+            const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`dash-nav-item ${isActive ? "active" : ""}`}
+                title={collapsed ? item.label : undefined}
+              >
+                <Icon size={18} />
+                {!collapsed && <span>{item.label}</span>}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="dash-sidebar-bottom">
+          {plan === "free" && (
+            <Link href="/pricing" className="primary dash-upgrade">
+              {collapsed ? "↑" : "Upgrade to Pro"}
+            </Link>
+          )}
+          {!collapsed && <span className="dash-sidebar-email">{email}</span>}
+          <form action={signOutAction}>
+            <button className="secondary dash-sidebar-signout" type="submit">
+              {collapsed ? "⏻" : "Sign out"}
+            </button>
+          </form>
+        </div>
+      </aside>
+    </>
   );
 }

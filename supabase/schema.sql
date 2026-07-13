@@ -178,3 +178,52 @@ with check (auth.uid() = user_id);
 alter table public.holdings add column if not exists annual_dividend_per_share numeric not null default 0;
 alter table public.holdings drop constraint if exists holdings_dividend_check;
 alter table public.holdings add constraint holdings_dividend_check check (annual_dividend_per_share >= 0);
+
+-- Optional, skippable "Personal Financial Profile" onboarding (Phase 1 of the
+-- AI-financial-operating-system rollout). Every financial field is a coarse
+-- range/enum rather than an exact figure or account identifier, by design —
+-- this table never holds account numbers, balances, or credentials. Unlike
+-- public.profiles (select-only for users), this row is fully user-writable
+-- since it's self-service personal data, not billing state.
+create table if not exists public.financial_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  age_range text check (age_range in ('under_25','25_34','35_44','45_54','55_64','65_plus')),
+  income_range text check (income_range in ('under_50k','50k_100k','100k_150k','150k_250k','250k_plus')),
+  monthly_expenses_range text check (monthly_expenses_range in ('under_2k','2k_4k','4k_6k','6k_10k','10k_plus')),
+  savings_range text check (savings_range in ('under_10k','10k_50k','50k_150k','150k_500k','500k_plus')),
+  debts_range text check (debts_range in ('none','under_10k','10k_50k','50k_150k','150k_plus')),
+  goals jsonb not null default '[]'::jsonb,
+  emergency_fund_goal_months numeric check (emergency_fund_goal_months >= 0),
+  retirement_goal_age integer check (retirement_goal_age > 0),
+  time_horizon text check (time_horizon in ('short','medium','long')),
+  risk_tolerance text check (risk_tolerance in ('conservative','moderate','aggressive')),
+  investment_experience text check (investment_experience in ('none','beginner','intermediate','advanced')),
+  real_estate_interest boolean,
+  business_ownership_interest boolean,
+  used_estimated_values boolean not null default false,
+  consent_given_at timestamptz,
+  consent_version text,
+  onboarding_completed_at timestamptz,
+  onboarding_skipped boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.financial_profiles enable row level security;
+
+create policy "Users can read their financial profile"
+on public.financial_profiles for select
+using (auth.uid() = user_id);
+
+create policy "Users can create their financial profile"
+on public.financial_profiles for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update their financial profile"
+on public.financial_profiles for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "Users can delete their financial profile"
+on public.financial_profiles for delete
+using (auth.uid() = user_id);

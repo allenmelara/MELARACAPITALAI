@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { getUser } from "@/lib/supabase/server";
 import { getPlan, getProfile } from "@/lib/profile";
+import { getFinancialProfile } from "@/lib/financialProfile";
 import { PLAN_LIMITS } from "@/lib/limits";
 import { countUsageSince, startOfCurrentMonthIso } from "@/lib/usage";
 import { signOutAction } from "@/app/auth/actions";
 import UsageBar from "@/components/UsageBar";
 import BrandingForm from "@/components/BrandingForm";
+import FinancialProfilePrivacyPanel from "@/components/FinancialProfilePrivacyPanel";
 
 const PLAN_LABELS = { free: "Free", pro: "Pro", business: "Business" };
 
 export default async function SettingsPage() {
   const user = await getUser();
-  const [plan, profile] = await Promise.all([getPlan(), getProfile()]);
+  const [plan, profile, financialProfile] = await Promise.all([getPlan(), getProfile(), getFinancialProfile()]);
   const limits = PLAN_LIMITS[plan];
   const sinceIso = startOfCurrentMonthIso();
   const [creditsUsed, chatUsed, documentsUsed] = await Promise.all([
@@ -63,6 +65,8 @@ export default async function SettingsPage() {
           <UsageBar label="Document uploads" used={documentsUsed} limit={limits.documentUploadsPerMonth} />
         </div>
       </div>
+
+      <FinancialProfilePrivacyPanel profile={financialProfile} />
 
       {plan === "business" && (
         <div className="panel" style={{ marginTop: 20 }}>

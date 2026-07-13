@@ -4,7 +4,9 @@ import { getUser } from "@/lib/supabase/server";
 import { listReports } from "@/lib/reports";
 import { listRecentChatReports } from "@/lib/reportChat";
 import { getMarketSnapshot } from "@/lib/marketData";
+import { getFinancialProfile } from "@/lib/financialProfile";
 import MarketDashboard from "@/components/MarketDashboard";
+import OnboardingNudge from "@/components/OnboardingNudge";
 
 const MODULE_LABELS: Record<string, string> = {
   company: "Company Research",
@@ -19,16 +21,18 @@ export default async function DashboardPage({
   searchParams: Promise<{ passwordUpdated?: string }>;
 }) {
   const user = await getUser();
-  const [reports, recentChats, params, marketSnapshot] = await Promise.all([
+  const [reports, recentChats, params, marketSnapshot, financialProfile] = await Promise.all([
     listReports(),
     listRecentChatReports(5),
     searchParams,
-    getMarketSnapshot()
+    getMarketSnapshot(),
+    getFinancialProfile()
   ]);
 
   const recentReports = reports.slice(0, 5);
   const recentDocuments = reports.filter((r) => r.module === "document").slice(0, 5);
   const firstName = user?.email ? user.email.split("@")[0] : "";
+  const showOnboardingNudge = !financialProfile?.onboardingCompletedAt && !financialProfile?.onboardingSkipped;
 
   return (
     <>
@@ -37,6 +41,8 @@ export default async function DashboardPage({
         <p>Continue where you left off, or start something new.</p>
         {params.passwordUpdated === "1" && <p className="notice">Your password has been updated.</p>}
       </section>
+
+      <OnboardingNudge eligible={showOnboardingNudge} />
 
       <MarketDashboard snapshot={marketSnapshot} />
 

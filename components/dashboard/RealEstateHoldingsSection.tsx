@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { money } from "@/lib/finance";
 import type { RealEstateHolding } from "@/lib/realEstateHoldings";
 
@@ -68,8 +69,8 @@ export default function RealEstateHoldingsSection({ initialHoldings }: { initial
       <h2 style={{ marginTop: 0 }}>Real estate</h2>
       <p className="disclaimer" style={{ marginTop: 0 }}>
         Manually-entered property estimates. For a full investment-return projection on a property, use the{" "}
-        <a href="/dashboard/real-estate">Real Estate calculator</a> instead — this section just tracks equity you
-        already hold.
+        <Link href="/dashboard/real-estate">Real Estate calculator</Link> instead — this section just tracks equity
+        you already hold.
       </p>
 
       <div className="metrics">

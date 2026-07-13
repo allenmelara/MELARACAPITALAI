@@ -83,20 +83,28 @@ export default function GoalsTracker({ initialGoals }: { initialGoals: Financial
     const draft = progressDrafts[id];
     if (draft === undefined) return;
     const amount = Number(draft);
-    if (!(amount >= 0)) return;
+    if (!(amount >= 0)) {
+      setError("Enter a progress amount of 0 or more.");
+      return;
+    }
+    setError("");
     setSavingId(id);
     try {
-      await fetch(`/api/financial-goals/${id}`, {
+      const response = await fetch(`/api/financial-goals/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentAmount: amount })
       });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update progress.");
       await refresh();
       setProgressDrafts((current) => {
         const next = { ...current };
         delete next[id];
         return next;
       });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update progress.");
     } finally {
       setSavingId(null);
     }

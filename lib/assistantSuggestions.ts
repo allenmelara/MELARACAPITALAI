@@ -8,6 +8,7 @@ export type AssistantContext =
   | "dashboard:wealth"
   | "dashboard:portfolio"
   | "dashboard:news"
+  | "dashboard:learn"
   | "dashboard:reports"
   | "dashboard:settings"
   | "general";
@@ -50,6 +51,11 @@ export const SUGGESTED_QUESTIONS: Record<AssistantContext, string[]> = {
     "How is this news personalized to me?",
     "Are the AI summaries accurate?",
     "How are Earnings and Fed & Policy decided?"
+  ],
+  "dashboard:learn": [
+    "What's the difference between a 401(k) and a Roth IRA?",
+    "Explain EBITDA in plain English",
+    "What's a good savings rate for a beginner?"
   ],
   "dashboard:reports": [
     "How do I export a report as a PDF?",
@@ -112,6 +118,7 @@ export function contextFromPath(pathname: string): AssistantContext {
   if (pathname.startsWith("/dashboard/wealth")) return "dashboard:wealth";
   if (pathname.startsWith("/dashboard/portfolio")) return "dashboard:portfolio";
   if (pathname.startsWith("/dashboard/news")) return "dashboard:news";
+  if (pathname.startsWith("/dashboard/learn")) return "dashboard:learn";
   if (pathname === "/dashboard") return "dashboard:overview";
   return "general";
 }

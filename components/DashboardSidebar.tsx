@@ -12,6 +12,7 @@ import {
   PiggyBank,
   Wallet,
   Newspaper,
+  GraduationCap,
   FolderOpen,
   CreditCard,
   Settings,
@@ -30,6 +31,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/wealth", label: "Wealth Planner", icon: PiggyBank },
   { href: "/dashboard/portfolio", label: "Portfolio Tracker", icon: Wallet },
   { href: "/dashboard/news", label: "News Feed", icon: Newspaper },
+  { href: "/dashboard/learn", label: "Learn", icon: GraduationCap },
   { href: "/dashboard/reports", label: "Saved Reports", icon: FolderOpen },
   { href: "/pricing", label: "Billing", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings }
@@ -77,7 +79,7 @@ export default function DashboardSidebar({ email, plan }: { email: string; plan:
 
       <nav className="dash-nav">
         {(plan === "business"
-          ? [...NAV_ITEMS.slice(0, 8), BUSINESS_NAV_ITEM, ...NAV_ITEMS.slice(8)]
+          ? [...NAV_ITEMS.slice(0, 9), BUSINESS_NAV_ITEM, ...NAV_ITEMS.slice(9)]
           : NAV_ITEMS
         ).map((item) => {
           const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);

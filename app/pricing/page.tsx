@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Check, Minus, Star } from "lucide-react";
 import { getUser } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
@@ -101,6 +102,7 @@ export default async function PricingPage() {
     <div className="shell">
       <nav className="nav">
         <Link href="/" className="brand">
+          <Image src="/logo.png" alt="" width={28} height={28} className="brand-logo" />
           Melara Capital <span>AI</span>
         </Link>
         <div className="nav-actions">

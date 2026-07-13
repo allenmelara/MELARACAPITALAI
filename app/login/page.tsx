@@ -2,6 +2,7 @@
 
 import { Suspense, useActionState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { signIn, type AuthState } from "@/app/auth/actions";
 
@@ -25,6 +26,7 @@ function LoginForm() {
     <div className="shell">
       <nav className="nav">
         <Link href="/" className="brand">
+          <Image src="/logo.png" alt="" width={28} height={28} className="brand-logo" />
           Melara Capital <span>AI</span>
         </Link>
       </nav>

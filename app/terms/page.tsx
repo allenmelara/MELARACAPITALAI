@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export const metadata = {
   title: "Terms of Service — Melara Capital AI"
@@ -9,6 +10,7 @@ export default function TermsPage() {
     <div className="shell">
       <nav className="nav">
         <Link href="/" className="brand">
+          <Image src="/logo.png" alt="" width={28} height={28} className="brand-logo" />
           Melara Capital <span>AI</span>
         </Link>
         <div className="nav-actions">

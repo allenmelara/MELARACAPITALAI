@@ -21,13 +21,17 @@ import {
   ChevronsRight,
   Menu,
   X,
-  UserCircle
+  UserCircle,
+  Landmark,
+  Target
 } from "lucide-react";
 import { signOutAction } from "@/app/auth/actions";
 import type { Plan } from "@/lib/profile";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/dashboard/accounts", label: "Accounts", icon: Landmark },
+  { href: "/dashboard/goals", label: "Goals", icon: Target },
   { href: "/dashboard/onboarding", label: "Financial Profile", icon: UserCircle },
   { href: "/dashboard/company", label: "Company Research", icon: Building2 },
   { href: "/dashboard/documents", label: "Document Analysis", icon: FileText },
@@ -75,7 +79,7 @@ export default function DashboardSidebar({ email, plan }: { email: string; plan:
   const navItems =
     // BUSINESS_NAV_ITEM is spliced in before "Billing" — bump both indices below if NAV_ITEMS gains
     // or loses an entry earlier in the array.
-    plan === "business" ? [...NAV_ITEMS.slice(0, 10), BUSINESS_NAV_ITEM, ...NAV_ITEMS.slice(10)] : NAV_ITEMS;
+    plan === "business" ? [...NAV_ITEMS.slice(0, 12), BUSINESS_NAV_ITEM, ...NAV_ITEMS.slice(12)] : NAV_ITEMS;
 
   return (
     <>

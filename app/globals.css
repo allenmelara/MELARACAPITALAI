@@ -195,6 +195,21 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
 .metric { padding:16px; }
 .metric span { display:block; color:var(--muted); font-size:12px; margin-bottom:6px; }
 .metric strong { font-size:22px; }
+.dash-metric-tile { position:relative; }
+.dash-metric-sample-badge {
+  display:inline-block; margin-left:6px; font-size:10px; text-transform:uppercase; letter-spacing:.04em;
+  color:var(--muted); border:1px solid var(--border); border-radius:999px; padding:1px 6px;
+}
+.dash-metric-cta { display:block; margin-top:8px; font-size:12px; color:var(--accent); }
+.dash-progress-tile { padding:20px; }
+
+/* AI recommendations */
+.recommendations-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px; }
+.recommendation-item { padding:14px 16px; border:1px solid var(--border); border-radius:12px; }
+.recommendation-item p { margin:6px 0 0; color:var(--muted); font-size:13px; line-height:1.5; }
+.recommendation-item-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.recommendation-priority { font-size:10px; text-transform:uppercase; letter-spacing:.04em; border-radius:999px; padding:2px 8px; border:1px solid var(--border); color:var(--muted); flex-shrink:0; }
+.recommendation-priority-high { color:var(--accent); border-color:var(--accent); }
 .dividend-yield { font-size:13px; font-weight:400; color:var(--muted); }
 .text-up { color:var(--accent); }
 .text-down { color:var(--danger); }
@@ -579,6 +594,14 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
 .usage-bar-fill { height:100%; background:var(--accent); border-radius:999px; transition:width .2s ease; }
 .usage-bar-grid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:20px; }
 @media (max-width: 820px) { .usage-bar-grid { grid-template-columns:1fr; } }
+
+/* Financial goals */
+.goals-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:18px; }
+.goal-row { padding-bottom:18px; border-bottom:1px solid var(--border); }
+.goal-row:last-child { border-bottom:none; padding-bottom:0; }
+.goal-date { margin:2px 0 8px; }
+.goal-actions { display:flex; gap:8px; align-items:center; }
+.goal-actions input { max-width:160px; }
 
 /* SEC autofill / Advanced Settings upsell notices */
 .upsell-notice { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { money } from "@/lib/finance";
 import type { PortfolioSummary } from "@/lib/portfolio";
+import type { WatchlistQuote } from "@/lib/watchlist";
 import PortfolioChart from "@/components/PortfolioChart";
 
 const ALLOCATION_COLORS = ["#69e59b", "#6bd4e5", "#e5c76b", "#e58f6b", "#a56be5", "#e56bb0", "#6be58a", "#e5e06b"];
@@ -18,7 +19,13 @@ function ChangeText({ value, percent }: { value: number; percent?: number }) {
   );
 }
 
-export default function PortfolioTracker({ initialSummary }: { initialSummary: PortfolioSummary }) {
+export default function PortfolioTracker({
+  initialSummary,
+  initialWatchlist
+}: {
+  initialSummary: PortfolioSummary;
+  initialWatchlist: WatchlistQuote[];
+}) {
   const [summary, setSummary] = useState(initialSummary);
   const [symbol, setSymbol] = useState("");
   const [shares, setShares] = useState("");
@@ -28,10 +35,57 @@ export default function PortfolioTracker({ initialSummary }: { initialSummary: P
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const [watchlist, setWatchlist] = useState(initialWatchlist);
+  const [watchSymbol, setWatchSymbol] = useState("");
+  const [watchAdding, setWatchAdding] = useState(false);
+  const [watchError, setWatchError] = useState("");
+  const [watchDeletingId, setWatchDeletingId] = useState<string | null>(null);
+
   async function refresh() {
     const response = await fetch("/api/portfolio");
     const data = await response.json();
     if (response.ok) setSummary(data.summary);
+  }
+
+  async function refreshWatchlist() {
+    const response = await fetch("/api/watchlist");
+    const data = await response.json();
+    if (response.ok) setWatchlist(data.items);
+  }
+
+  async function handleAddWatch(e: React.FormEvent) {
+    e.preventDefault();
+    setWatchError("");
+    if (!watchSymbol.trim()) {
+      setWatchError("Enter a ticker symbol.");
+      return;
+    }
+    setWatchAdding(true);
+    try {
+      const response = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: watchSymbol.trim() })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to add to watchlist.");
+      setWatchSymbol("");
+      await refreshWatchlist();
+    } catch (err) {
+      setWatchError(err instanceof Error ? err.message : "Failed to add to watchlist.");
+    } finally {
+      setWatchAdding(false);
+    }
+  }
+
+  async function handleDeleteWatch(id: string) {
+    setWatchDeletingId(id);
+    try {
+      await fetch(`/api/watchlist/${id}`, { method: "DELETE" });
+      await refreshWatchlist();
+    } finally {
+      setWatchDeletingId(null);
+    }
   }
 
   async function handleAdd(e: React.FormEvent) {
@@ -246,6 +300,72 @@ export default function PortfolioTracker({ initialSummary }: { initialSummary: P
       <div className="portfolio-chart">
         <h3>Performance</h3>
         <PortfolioChart history={summary.history} />
+      </div>
+
+      <div className="portfolio-watchlist">
+        <h3>Watchlist</h3>
+        <p className="disclaimer" style={{ marginTop: 0 }}>
+          Symbols you're following but don't own — not counted in the totals above.
+        </p>
+        <form className="form-grid" onSubmit={handleAddWatch}>
+          <label>
+            Ticker
+            <input
+              value={watchSymbol}
+              onChange={(e) => setWatchSymbol(e.target.value)}
+              placeholder="NVDA"
+              disabled={watchAdding}
+            />
+          </label>
+          <div className="actions full">
+            <button className="primary" type="submit" disabled={watchAdding}>
+              {watchAdding ? "Adding..." : "Add to watchlist"}
+            </button>
+          </div>
+        </form>
+        {watchError && <div className="error">{watchError}</div>}
+
+        {watchlist.length === 0 ? (
+          <p className="disclaimer">Nothing on your watchlist yet — add a ticker above.</p>
+        ) : (
+          <table className="portfolio-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Price</th>
+                <th>Change</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {watchlist.map((w) => (
+                <tr key={w.id}>
+                  <td>{w.symbol}</td>
+                  <td>{w.price !== null ? money(w.price) : "—"}</td>
+                  <td>
+                    {w.changePercent !== null ? (
+                      <span className={w.changePercent >= 0 ? "market-up" : "market-down"}>
+                        {w.changePercent >= 0 ? "+" : ""}
+                        {w.changePercent.toFixed(2)}%
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      className="secondary portfolio-remove"
+                      onClick={() => handleDeleteWatch(w.id)}
+                      disabled={watchDeletingId === w.id}
+                    >
+                      {watchDeletingId === w.id ? "..." : "Remove"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

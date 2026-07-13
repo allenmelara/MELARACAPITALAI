@@ -1,12 +1,36 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Building2, FileText, Home, PiggyBank } from "lucide-react";
 import { getUser } from "@/lib/supabase/server";
 import { listReports } from "@/lib/reports";
 import { listRecentChatReports } from "@/lib/reportChat";
 import { getMarketSnapshot } from "@/lib/marketData";
 import { getFinancialProfile } from "@/lib/financialProfile";
+import { listCashAccounts } from "@/lib/cashAccounts";
+import { listDebts } from "@/lib/debts";
+import { listRealEstateHoldings } from "@/lib/realEstateHoldings";
+import { listBills, withNextDueDate } from "@/lib/bills";
+import { listGoals } from "@/lib/financialGoals";
+import { getWatchlistWithQuotes } from "@/lib/watchlist";
+import { listHoldings } from "@/lib/portfolio";
+import { getCurrentMonthBudget, getBudgetHistory } from "@/lib/monthlyBudget";
+import { getNetWorthSummary, getEmergencyFundProgress, getRetirementProgress } from "@/lib/netWorth";
 import MarketDashboard from "@/components/MarketDashboard";
 import OnboardingNudge from "@/components/OnboardingNudge";
+import NetWorthSummary from "@/components/dashboard/NetWorthSummary";
+import ProgressTile from "@/components/dashboard/ProgressTile";
+import MonthlyBudgetSection from "@/components/dashboard/MonthlyBudgetSection";
+import UpcomingBills from "@/components/dashboard/UpcomingBills";
+import GoalsSummary from "@/components/dashboard/GoalsSummary";
+import WatchlistSummary from "@/components/dashboard/WatchlistSummary";
+import NetWorthChart from "@/components/dashboard/NetWorthChart";
+import IncomeSpendingChart from "@/components/dashboard/IncomeSpendingChart";
+import SpendingCategoryChart from "@/components/dashboard/SpendingCategoryChart";
+import SavingsProgressChart from "@/components/dashboard/SavingsProgressChart";
+import DebtPayoffChart from "@/components/dashboard/DebtPayoffChart";
+import InvestmentAllocationChart from "@/components/dashboard/InvestmentAllocationChart";
+import GoalProjectionChart from "@/components/dashboard/GoalProjectionChart";
+import RecommendationsCard from "@/components/dashboard/RecommendationsCard";
 
 const MODULE_LABELS: Record<string, string> = {
   company: "Company Research",
@@ -21,18 +45,55 @@ export default async function DashboardPage({
   searchParams: Promise<{ passwordUpdated?: string }>;
 }) {
   const user = await getUser();
-  const [reports, recentChats, params, marketSnapshot, financialProfile] = await Promise.all([
+  if (!user) {
+    redirect("/login");
+  }
+
+  const [
+    reports,
+    recentChats,
+    params,
+    marketSnapshot,
+    financialProfile,
+    cashAccounts,
+    debts,
+    realEstateHoldings,
+    bills,
+    goals,
+    watchlist,
+    holdings,
+    budgetHistory,
+    currentBudget,
+    netWorth
+  ] = await Promise.all([
     listReports(),
     listRecentChatReports(5),
     searchParams,
     getMarketSnapshot(),
-    getFinancialProfile()
+    getFinancialProfile(),
+    listCashAccounts(),
+    listDebts(),
+    listRealEstateHoldings(),
+    listBills(),
+    listGoals(),
+    getWatchlistWithQuotes(),
+    listHoldings(),
+    getBudgetHistory(),
+    getCurrentMonthBudget(),
+    getNetWorthSummary(user.id)
+  ]);
+
+  const previousBudget = budgetHistory.length > 0 ? budgetHistory[budgetHistory.length - 1] : null;
+  const [emergencyFundProgress, retirementProgress] = await Promise.all([
+    getEmergencyFundProgress(),
+    getRetirementProgress(netWorth.investments)
   ]);
 
   const recentReports = reports.slice(0, 5);
   const recentDocuments = reports.filter((r) => r.module === "document").slice(0, 5);
   const firstName = user?.email ? user.email.split("@")[0] : "";
   const showOnboardingNudge = !financialProfile?.onboardingCompletedAt && !financialProfile?.onboardingSkipped;
+  const upcomingBills = withNextDueDate(bills);
 
   return (
     <>
@@ -43,6 +104,78 @@ export default async function DashboardPage({
       </section>
 
       <OnboardingNudge eligible={showOnboardingNudge} />
+
+      <NetWorthSummary
+        netWorth={netWorth}
+        hasCash={cashAccounts.length > 0}
+        hasDebt={debts.length > 0}
+        hasInvestments={holdings.length > 0}
+        hasRealEstate={realEstateHoldings.length > 0}
+        currentBudget={currentBudget}
+      />
+
+      <div className="panel" style={{ marginBottom: 20 }}>
+        <h3 style={{ marginTop: 0 }}>Net worth history</h3>
+        <NetWorthChart history={netWorth.history} />
+      </div>
+
+      <RecommendationsCard />
+
+      <div className="dash-columns" style={{ marginBottom: 20 }}>
+        <ProgressTile
+          title="Emergency fund progress"
+          progress={emergencyFundProgress?.progress ?? null}
+          current={emergencyFundProgress?.current}
+          target={emergencyFundProgress?.target}
+          emptyMessage="Set an emergency-fund goal in your Financial Profile and log this month's budget to see progress here."
+          ctaHref="/dashboard/onboarding"
+          ctaLabel="Set your goal"
+        />
+        <ProgressTile
+          title="Retirement progress"
+          progress={retirementProgress?.progress ?? null}
+          current={retirementProgress?.current}
+          target={retirementProgress?.target}
+          isEstimate={retirementProgress?.isEstimate}
+          emptyMessage="Complete your Financial Profile to see an estimated retirement progress."
+          ctaHref="/dashboard/onboarding"
+          ctaLabel="Complete your profile"
+        />
+      </div>
+
+      <div id="monthly-budget">
+        <MonthlyBudgetSection current={currentBudget} previous={previousBudget} />
+      </div>
+
+      <div className="dash-columns" style={{ marginBottom: 20 }}>
+        <div className="panel">
+          <h3 style={{ marginTop: 0 }}>Income vs. spending</h3>
+          <IncomeSpendingChart history={budgetHistory} />
+        </div>
+        <div className="panel">
+          <h3 style={{ marginTop: 0 }}>Spending by category</h3>
+          <SpendingCategoryChart budget={currentBudget} />
+        </div>
+        <div className="panel">
+          <h3 style={{ marginTop: 0 }}>Savings rate trend</h3>
+          <SavingsProgressChart history={budgetHistory} />
+        </div>
+      </div>
+
+      <div className="dash-columns" style={{ marginBottom: 20 }}>
+        <div className="panel">
+          <h3 style={{ marginTop: 0 }}>Debt payoff projection</h3>
+          <DebtPayoffChart debts={debts} />
+        </div>
+        <div className="panel">
+          <h3 style={{ marginTop: 0 }}>Investment allocation</h3>
+          <InvestmentAllocationChart allocation={netWorth.investmentAllocation} />
+        </div>
+        <div className="panel">
+          <h3 style={{ marginTop: 0 }}>Goal projections</h3>
+          <GoalProjectionChart goals={goals} />
+        </div>
+      </div>
 
       <MarketDashboard snapshot={marketSnapshot} />
 
@@ -64,6 +197,12 @@ export default async function DashboardPage({
           <span>Create Wealth Plan</span>
         </Link>
       </section>
+
+      <div className="dash-columns">
+        <UpcomingBills bills={upcomingBills} />
+        <GoalsSummary goals={goals} />
+        <WatchlistSummary items={watchlist} />
+      </div>
 
       <div className="dash-columns">
         <section className="dash-section">

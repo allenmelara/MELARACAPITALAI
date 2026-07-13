@@ -227,3 +227,177 @@ with check (auth.uid() = user_id);
 create policy "Users can delete their financial profile"
 on public.financial_profiles for delete
 using (auth.uid() = user_id);
+
+-- Phase 2: Personal Finance Dashboard. Every table below is manual-entry
+-- (no bank/brokerage linking) and follows the same uuid PK / user_id FK+cascade
+-- / full-CRUD-RLS conventions as public.holdings and public.financial_profiles.
+
+create table if not exists public.cash_accounts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  account_type text not null check (account_type in ('checking', 'savings', 'emergency_fund', 'other')),
+  balance numeric not null default 0 check (balance >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.cash_accounts enable row level security;
+
+create policy "Users can read their cash accounts" on public.cash_accounts for select using (auth.uid() = user_id);
+create policy "Users can create their cash accounts" on public.cash_accounts for insert with check (auth.uid() = user_id);
+create policy "Users can update their cash accounts" on public.cash_accounts for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete their cash accounts" on public.cash_accounts for delete using (auth.uid() = user_id);
+
+create table if not exists public.debts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  debt_type text not null check (debt_type in ('credit_card', 'student_loan', 'auto_loan', 'mortgage', 'personal_loan', 'other')),
+  balance numeric not null check (balance >= 0),
+  interest_rate numeric check (interest_rate >= 0),
+  minimum_payment numeric check (minimum_payment >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.debts enable row level security;
+
+create policy "Users can read their debts" on public.debts for select using (auth.uid() = user_id);
+create policy "Users can create their debts" on public.debts for insert with check (auth.uid() = user_id);
+create policy "Users can update their debts" on public.debts for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete their debts" on public.debts for delete using (auth.uid() = user_id);
+
+-- due_day is a day-of-month (1-31); "upcoming" is computed in app code as the
+-- next occurrence of that day from today, not stored as a specific date.
+create table if not exists public.bills (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  amount numeric not null check (amount >= 0),
+  due_day integer not null check (due_day between 1 and 31),
+  category text,
+  autopay boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.bills enable row level security;
+
+create policy "Users can read their bills" on public.bills for select using (auth.uid() = user_id);
+create policy "Users can create their bills" on public.bills for insert with check (auth.uid() = user_id);
+create policy "Users can update their bills" on public.bills for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete their bills" on public.bills for delete using (auth.uid() = user_id);
+
+-- Distinct from the /dashboard/real-estate ROI calculator (a one-off tool with
+-- no persisted state) — this is a tracked list of owned properties.
+create table if not exists public.real_estate_holdings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  estimated_value numeric not null check (estimated_value >= 0),
+  mortgage_balance numeric not null default 0 check (mortgage_balance >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.real_estate_holdings enable row level security;
+
+create policy "Users can read their real estate holdings" on public.real_estate_holdings for select using (auth.uid() = user_id);
+create policy "Users can create their real estate holdings" on public.real_estate_holdings for insert with check (auth.uid() = user_id);
+create policy "Users can update their real estate holdings" on public.real_estate_holdings for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete their real estate holdings" on public.real_estate_holdings for delete using (auth.uid() = user_id);
+
+create table if not exists public.watchlist_items (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  symbol text not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, symbol)
+);
+
+alter table public.watchlist_items enable row level security;
+
+create policy "Users can read their watchlist items" on public.watchlist_items for select using (auth.uid() = user_id);
+create policy "Users can create their watchlist items" on public.watchlist_items for insert with check (auth.uid() = user_id);
+create policy "Users can delete their watchlist items" on public.watchlist_items for delete using (auth.uid() = user_id);
+
+-- Separate from financial_profiles.goals (Phase 1's flat list of goal
+-- *interests* used for onboarding personalization) — this is a trackable
+-- goal with a target amount/date and editable progress.
+create table if not exists public.financial_goals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  category text check (category in ('emergency_fund', 'retirement', 'home', 'debt_payoff', 'education', 'business', 'general')),
+  target_amount numeric not null check (target_amount > 0),
+  current_amount numeric not null default 0 check (current_amount >= 0),
+  target_date date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.financial_goals enable row level security;
+
+create policy "Users can read their financial goals" on public.financial_goals for select using (auth.uid() = user_id);
+create policy "Users can create their financial goals" on public.financial_goals for insert with check (auth.uid() = user_id);
+create policy "Users can update their financial goals" on public.financial_goals for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete their financial goals" on public.financial_goals for delete using (auth.uid() = user_id);
+
+-- One row per user per month, hand-entered via a "log this month" form — a
+-- lightweight budget check-in, not a transaction ledger.
+create table if not exists public.monthly_budgets (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  month date not null,
+  income numeric not null default 0 check (income >= 0),
+  categories jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, month)
+);
+
+alter table public.monthly_budgets enable row level security;
+
+create policy "Users can read their monthly budgets" on public.monthly_budgets for select using (auth.uid() = user_id);
+create policy "Users can create their monthly budgets" on public.monthly_budgets for insert with check (auth.uid() = user_id);
+create policy "Users can update their monthly budgets" on public.monthly_budgets for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete their monthly budgets" on public.monthly_budgets for delete using (auth.uid() = user_id);
+
+-- Mirrors public.portfolio_snapshots exactly: upserted once/day on dashboard
+-- load so net-worth history accumulates organically from today onward.
+create table if not exists public.net_worth_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  snapshot_date date not null,
+  net_worth numeric not null,
+  total_assets numeric not null,
+  total_debt numeric not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, snapshot_date)
+);
+
+alter table public.net_worth_snapshots enable row level security;
+
+create policy "Users can read their net worth snapshots" on public.net_worth_snapshots for select using (auth.uid() = user_id);
+create policy "Users can create their net worth snapshots" on public.net_worth_snapshots for insert with check (auth.uid() = user_id);
+create policy "Users can update their net worth snapshots" on public.net_worth_snapshots for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Cached AI-generated recommendation cards, regenerated at most once per day
+-- (the unique constraint below is what enforces that, independent of any
+-- in-memory cache/instance-restart concerns) — unmetered against
+-- aiResearchCredits, same treatment as the News Feed.
+create table if not exists public.ai_recommendations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  generated_date date not null,
+  recommendations jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (user_id, generated_date)
+);
+
+alter table public.ai_recommendations enable row level security;
+
+create policy "Users can read their AI recommendations" on public.ai_recommendations for select using (auth.uid() = user_id);
+create policy "Users can create their AI recommendations" on public.ai_recommendations for insert with check (auth.uid() = user_id);
+create policy "Users can update their AI recommendations" on public.ai_recommendations for update using (auth.uid() = user_id) with check (auth.uid() = user_id);

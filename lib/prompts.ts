@@ -405,3 +405,52 @@ ARTICLES:
 ${articles.map((a) => `id: ${a.id}\nheadline: ${a.headline}\nsource: ${a.source}\nsnippet: ${a.snippet}`).join("\n\n")}
 `;
 }
+
+// Dashboard "AI recommendations" — short, actionable tip cards distinct from
+// a full saved report. One forced tool call, regenerated at most once/day
+// (see lib/recommendations.ts), so cost stays bounded without a metered cap.
+export const RECOMMENDATIONS_TOOL = {
+  name: "emit_recommendations",
+  description: "Return 3-5 short, actionable educational recommendation cards based on the user's financial snapshot.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      recommendations: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "A short kebab-case slug identifying this recommendation." },
+            title: { type: "string", description: "A short, plain-language title (under 8 words). No markdown." },
+            summary: { type: "string", description: "1-3 plain sentences explaining the recommendation. No markdown." },
+            category: { type: "string", enum: ["savings", "debt", "investing", "goals", "spending"] },
+            priority: { type: "string", enum: ["high", "medium", "low"] }
+          },
+          required: ["id", "title", "summary", "category", "priority"]
+        }
+      }
+    },
+    required: ["recommendations"]
+  }
+};
+
+export function recommendationsPrompt(payload: unknown) {
+  return `
+You are generating short, educational financial recommendation cards for a
+personal-finance dashboard. This is not individualized investment, tax,
+legal, or fiduciary advice — frame every recommendation as general
+educational guidance, never a personalized directive. Never invent numbers
+that aren't in the snapshot below; if a figure is missing, suggest the user
+add it rather than guessing.
+
+Based on the financial snapshot below (all monetary figures are user-provided
+or estimated from coarse ranges — treat missing fields as unknown, not zero),
+call emit_recommendations with 3-5 recommendation cards, each grounded in a
+specific figure or gap from the snapshot (e.g. a low emergency fund, a
+high-interest debt, an unset goal, a healthy savings rate worth reinforcing).
+Prioritize the most impactful items as "high".
+
+FINANCIAL SNAPSHOT:
+${JSON.stringify(payload)}
+`;
+}

@@ -16,6 +16,7 @@ import { calculateKeyRatios, type KeyRatios } from "@/lib/ratios";
 import { parseStructuredCompanyReport } from "@/lib/structuredReport";
 import StructuredReport from "@/components/StructuredReport";
 import CompanyCharts from "@/components/CompanyCharts";
+import CompanyMarketCharts from "@/components/CompanyMarketCharts";
 import ReportChat from "@/components/ReportChat";
 import CompanySearch, { type SelectedCompany } from "@/components/company/CompanySearch";
 import WorkflowStepper, { type WorkflowStep } from "@/components/company/WorkflowStepper";
@@ -409,6 +410,7 @@ export default function CompanyAnalyzer({ plan }: { plan: Plan }) {
             comparables={comparables}
             compsAverageEvToEbitda={compsAverageEvToEbitda}
             companyName={identity?.name ?? ""}
+            ticker={identity?.ticker ?? ""}
             statements={statements}
             plan={plan}
             onUpdate={update}
@@ -694,6 +696,7 @@ function StepValuation({
   comparables,
   compsAverageEvToEbitda,
   companyName,
+  ticker,
   statements,
   plan,
   onUpdate,
@@ -707,6 +710,7 @@ function StepValuation({
   comparables: Comparable[];
   compsAverageEvToEbitda: number | null;
   companyName: string;
+  ticker: string;
   statements: StatementsData | null;
   plan: Plan;
   onUpdate: (key: keyof CompanyInputs, raw: string) => void;
@@ -753,6 +757,7 @@ function StepValuation({
       </div>
 
       <CompanyCharts companyName={companyName} metrics={metrics} comparables={comparables} statements={statements} />
+      {ticker && <CompanyMarketCharts ticker={ticker} />}
 
       {plan === "free" ? (
         <div className="advanced-settings-upsell">

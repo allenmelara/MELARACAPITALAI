@@ -206,3 +206,139 @@ export async function getCompanyNews(symbol: string, days = 7): Promise<NewsItem
   }
   return parseNewsItems(await response.json());
 }
+
+export type EarningsQuarter = {
+  period: string;
+  year: number;
+  quarter: number;
+  actual: number | null;
+  estimate: number | null;
+  surprisePercent: number | null;
+};
+
+// Actual vs. estimated EPS for the trailing several quarters — free tier,
+// unlike /stock/candle and /stock/price-target.
+export async function getEarningsHistory(symbol: string): Promise<EarningsQuarter[]> {
+  const response = await throttledFetch(
+    `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(symbol)}&token=${apiKey()}`
+  );
+  if (!response.ok) {
+    throw new Error(`Finnhub earnings request failed: ${response.status}`);
+  }
+  const data = (await response.json()) as Array<{
+    period?: string;
+    year?: number;
+    quarter?: number;
+    actual?: number | null;
+    estimate?: number | null;
+    surprisePercent?: number | null;
+  }>;
+  if (!Array.isArray(data)) return [];
+  // Finnhub returns newest-first; reverse to chronological for a left-to-right chart.
+  return data
+    .filter((d) => d.period)
+    .map((d) => ({
+      period: d.period as string,
+      year: d.year ?? 0,
+      quarter: d.quarter ?? 0,
+      actual: d.actual ?? null,
+      estimate: d.estimate ?? null,
+      surprisePercent: d.surprisePercent ?? null
+    }))
+    .reverse();
+}
+
+export type MarginPoint = {
+  period: string;
+  grossMargin: number | null;
+  operatingMargin: number | null;
+  netMargin: number | null;
+};
+
+// Quarterly margin history from Finnhub's "basic financials" endpoint —
+// the top-level metric object only has the latest snapshot, but the
+// `series.quarterly` object carries several years of history per metric.
+export async function getMarginHistory(symbol: string): Promise<MarginPoint[]> {
+  const response = await throttledFetch(
+    `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(symbol)}&metric=all&token=${apiKey()}`
+  );
+  if (!response.ok) {
+    throw new Error(`Finnhub metric request failed: ${response.status}`);
+  }
+  const data = (await response.json()) as {
+    series?: {
+      quarterly?: {
+        grossMargin?: Array<{ period: string; v: number }>;
+        operatingMargin?: Array<{ period: string; v: number }>;
+        netMargin?: Array<{ period: string; v: number }>;
+      };
+    };
+  };
+  const quarterly = data.series?.quarterly;
+  if (!quarterly) return [];
+
+  const byPeriod = new Map<string, MarginPoint>();
+  const addSeries = (
+    series: Array<{ period: string; v: number }> | undefined,
+    key: "grossMargin" | "operatingMargin" | "netMargin"
+  ) => {
+    for (const point of series ?? []) {
+      const existing = byPeriod.get(point.period) ?? {
+        period: point.period,
+        grossMargin: null,
+        operatingMargin: null,
+        netMargin: null
+      };
+      existing[key] = point.v;
+      byPeriod.set(point.period, existing);
+    }
+  };
+  addSeries(quarterly.grossMargin, "grossMargin");
+  addSeries(quarterly.operatingMargin, "operatingMargin");
+  addSeries(quarterly.netMargin, "netMargin");
+
+  // Finnhub's series is newest-first; take the most recent 12 quarters and
+  // reverse to chronological for a left-to-right chart.
+  return Array.from(byPeriod.values())
+    .sort((a, b) => (a.period < b.period ? 1 : -1))
+    .slice(0, 12)
+    .reverse();
+}
+
+export type AnalystRating = {
+  period: string;
+  strongBuy: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  strongSell: number;
+};
+
+export async function getAnalystRatings(symbol: string): Promise<AnalystRating[]> {
+  const response = await throttledFetch(
+    `https://finnhub.io/api/v1/stock/recommendation?symbol=${encodeURIComponent(symbol)}&token=${apiKey()}`
+  );
+  if (!response.ok) {
+    throw new Error(`Finnhub recommendation request failed: ${response.status}`);
+  }
+  const data = (await response.json()) as Array<{
+    period?: string;
+    strongBuy?: number;
+    buy?: number;
+    hold?: number;
+    sell?: number;
+    strongSell?: number;
+  }>;
+  if (!Array.isArray(data)) return [];
+  return data
+    .filter((d) => d.period)
+    .map((d) => ({
+      period: d.period as string,
+      strongBuy: d.strongBuy ?? 0,
+      buy: d.buy ?? 0,
+      hold: d.hold ?? 0,
+      sell: d.sell ?? 0,
+      strongSell: d.strongSell ?? 0
+    }))
+    .reverse();
+}

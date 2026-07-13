@@ -225,6 +225,13 @@ textarea { min-height:230px; resize:vertical; line-height:1.5; }
 .charts-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:20px 0; }
 .chart-card { background:linear-gradient(180deg, var(--panel2), var(--panel)); border:1px solid var(--border); border-radius:16px; padding:16px; }
 .chart-card h4 { margin:0 0 8px; font-size:13px; color:var(--muted); font-weight:600; }
+.chart-card-full { grid-column:1 / -1; }
+.chart-card-header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+.chart-card-header h4 { margin:0; }
+.range-tabs { display:flex; gap:4px; }
+.range-tab { padding:4px 10px; font-size:12px; border-radius:999px; border:1px solid var(--border); background:transparent; color:var(--muted); }
+.range-tab.active { color:var(--text); border-color:var(--accent); background:rgba(105,229,155,.08); }
+.chart-source-note { margin:8px 0 0; font-size:11px; }
 @media (max-width: 850px) { .charts-grid { grid-template-columns:1fr; } }
 .error { color:var(--danger); margin-top:12px; }
 .disclaimer { color:var(--muted); font-size:12px; line-height:1.5; margin-top:16px; }

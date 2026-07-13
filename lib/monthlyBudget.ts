@@ -64,11 +64,15 @@ export async function upsertMonthBudget(
 
 export async function getBudgetHistory(months = 12): Promise<MonthlyBudget[]> {
   const supabase = await createClient();
+  // Order descending + limit to actually get the most recent N months, then
+  // reverse back to ascending — the shape chart consumers (IncomeSpendingChart,
+  // SavingsProgressChart) expect. Ordering ascending-then-limit would instead
+  // return the *oldest* N months for anyone with more than `months` on file.
   const { data, error } = await supabase
     .from("monthly_budgets")
     .select("month, income, categories, updated_at")
-    .order("month", { ascending: true })
+    .order("month", { ascending: false })
     .limit(months);
   if (error) throw error;
-  return (data ?? []).map(toMonthlyBudget);
+  return (data ?? []).map(toMonthlyBudget).reverse();
 }

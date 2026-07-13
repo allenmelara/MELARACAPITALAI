@@ -47,4 +47,14 @@ describe("calculateDebtPayoff", () => {
     const { series } = calculateDebtPayoff(debts);
     expect(series[0].totalBalance).toBe(2000);
   });
+
+  it("applies extraMonthlyPayment every month, not just once", () => {
+    const debt = makeDebt({ balance: 1000, interestRate: 12, minimumPayment: 100 });
+    const withoutExtra = calculateDebtPayoff([debt]);
+    const withExtra = calculateDebtPayoff([{ ...debt }], 200);
+    expect(withExtra.payoffMonths[debt.id]!).toBeLessThan(withoutExtra.payoffMonths[debt.id]!);
+    // Recurring $200/mo extra should pay it off in ~4 months, not linger for
+    // most of the loan the way a one-time bump in month 1 would.
+    expect(withExtra.payoffMonths[debt.id]).toBeLessThanOrEqual(5);
+  });
 });

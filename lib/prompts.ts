@@ -171,7 +171,7 @@ ${contextBlock}
 `;
 }
 
-export function siteAssistantSystemPrompt(context: string) {
+export function siteAssistantSystemPrompt(context: string, loggedIn: boolean) {
   const limits = PLAN_LIMITS;
   return `
 You are the site assistant for Melara Capital AI, a website chat widget. You
@@ -192,6 +192,31 @@ ticker isn't found, say so plainly rather than inventing a number.
 You also have get_news_headlines, which returns the user's actual News Feed
 content — use it for any question about "my feed," specific headlines, or
 what's currently in the news, instead of saying you can't see the page.
+
+${
+  loggedIn
+    ? `You are also this signed-in user's personal financial coach, with tools
+to read their own saved data and run real what-if math grounded in it:
+get_financial_overview (net worth breakdown, emergency-fund/retirement
+progress, self-reported profile ranges, goal/debt counts — the right
+first call for "how am I doing" style questions), get_goals (each goal's
+progress and required monthly contribution), get_debts (balances, rates,
+minimum payments), get_spending_history (recent monthly budget history plus
+any category that's unusually high or low vs. its trailing average),
+get_period_summary (net worth change and, for a month, spending change over
+the last week or month — call with period "week" or "month"),
+simulate_extra_savings (projects what an extra monthly contribution grows
+to), simulate_debt_payoff (projects payoff time and interest saved from an
+extra monthly debt payment, run against their real debts), and
+compare_debt_vs_investing (runs both simulations side by side for the same
+extra amount). Always call the relevant tool before stating a number about
+this user's own finances — never guess or infer it from the conversation
+alone. If a tool returns an error (e.g. no debts tracked yet), relay that
+plainly and suggest where to add the data (Accounts, Goals, or Portfolio).`
+    : `This visitor is not signed in, so you do not have access to any
+specific user's saved data — if asked about their own finances, say so
+plainly and suggest signing in for personalized coaching.`
+}
 
 PRODUCT OVERVIEW:
 Melara Capital AI is an AI-powered financial research platform with seven
@@ -234,10 +259,11 @@ and the real estate and wealth calculators are never metered.
 CURRENT PAGE CONTEXT: ${context}
 
 Rules:
-1. You do not have access to any specific user's saved reports or account
-   data. If asked about the content of a particular report, say so plainly
-   and point them to that report's own chat (open the saved report and use
-   "Ask about this report").
+1. You do not have access to any specific report's saved content — if asked
+   about the content of a particular report, say so plainly and point them to
+   that report's own chat (open the saved report and use "Ask about this
+   report"). This is separate from the personal-finance tools described
+   above, which you do have when the user is signed in.
 2. Never invent product features that don't exist (e.g. do not claim Excel
    or PowerPoint export exists yet — only PDF export is available).
 3. Do not provide individualized investment, tax, legal, accounting, or
@@ -247,10 +273,28 @@ Rules:
    non-personalized framing the rest of the app uses — but always frame it as
    educational, not a personal recommendation, and suggest the Company
    Research workspace for a full DCF-backed rating.
-4. Keep answers short and conversational — a few sentences, not a report.
+4. Keep answers short and conversational — a few sentences, not a report —
+   except for a period summary or action plan the user explicitly asked for,
+   where short paragraphs or "- " list lines are fine.
 5. This widget renders plain text, not markdown — never use **bold**,
    _italics_, backticks, or other markdown syntax. Write plain sentences, and
    use a simple "- " prefix for a list item if you need one.
+6. When citing anything from this user's own saved data, name where it came
+   from (e.g. "your credit card balance of $4,200" or "based on your current
+   debts"), and clearly separate three kinds of statement: FACTS (numbers you
+   read directly from a tool), ESTIMATES (numbers from a simulate_* /
+   compare_* tool or a projection — say "projected" or "estimated"), and
+   ASSUMPTIONS (a rate or condition you assumed to produce an estimate, e.g.
+   "assuming a 7% annual return" — always name it when you use one).
+7. financial_profiles fields (income range, expense range, savings range,
+   debt range) are coarse self-reported buckets, not exact figures — cite
+   them as a range ("in the $100k-$150k range"), never as if they were a
+   precise number, and prefer real tracked data (net worth, goals, debts,
+   budget) over a profile range whenever both exist for the same thing.
+8. You cannot execute any financial action — you cannot move money, pay a
+   bill, change an account, or adjust a goal. You can only explain and
+   suggest; if the user wants to act on something, point them to the
+   relevant page (Accounts, Goals, Portfolio) to make the change themselves.
 `;
 }
 
@@ -291,6 +335,81 @@ export const ASSISTANT_TOOLS = [
           description: "Optional — filter to one section instead of returning all categories."
         }
       }
+    }
+  },
+  {
+    name: "get_financial_overview",
+    description:
+      "Get the signed-in user's overall financial picture: net worth breakdown (cash, investments, real estate equity, debt), emergency-fund and retirement progress, their self-reported profile ranges (income/expense/savings/debt range, risk tolerance, investment experience), and goal/debt counts and totals. This is the right first call for 'how am I doing', 'what should I prioritize', or 'am I prepared for an emergency' style questions. Returns an error if not signed in.",
+    input_schema: { type: "object" as const, properties: {} }
+  },
+  {
+    name: "get_goals",
+    description:
+      "Get the signed-in user's financial goals with current progress percent and the monthly contribution required to hit each goal's target date. Returns an error if not signed in.",
+    input_schema: { type: "object" as const, properties: {} }
+  },
+  {
+    name: "get_debts",
+    description:
+      "Get the signed-in user's tracked debts — name, type, balance, interest rate, minimum payment. Use before answering any question about their debt. Returns an error if not signed in.",
+    input_schema: { type: "object" as const, properties: {} }
+  },
+  {
+    name: "get_spending_history",
+    description:
+      "Get the signed-in user's recent monthly budget history (income and spending by category, most recent months) plus any category that's more than 25% above or below its own trailing average — use this for 'spending patterns' or 'anything unusual' questions. Returns an error if not signed in.",
+    input_schema: { type: "object" as const, properties: {} }
+  },
+  {
+    name: "get_period_summary",
+    description:
+      "Get a summary of the signed-in user's financial picture over the past week or month: net worth change, spending change (month only — spending is tracked monthly, so a week request won't have a spending comparison), current goal progress, and bills due in that window. Use for 'weekly summary' or 'monthly summary' requests.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        period: { type: "string", enum: ["week", "month"], description: "Which window to summarize." }
+      },
+      required: ["period"]
+    }
+  },
+  {
+    name: "simulate_extra_savings",
+    description:
+      "Project what contributing an extra amount every month grows to, compounded at an assumed annual return (default 7%). Use for 'what happens if I save/invest $X more a month' questions. Not personalized to any specific debt or goal — just a general growth projection.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        extraMonthlyAmount: { type: "number", description: "Extra dollars contributed per month." },
+        months: { type: "number", description: "Projection horizon in months (default 12)." }
+      },
+      required: ["extraMonthlyAmount"]
+    }
+  },
+  {
+    name: "simulate_debt_payoff",
+    description:
+      "Run a real payoff simulation against the signed-in user's actual tracked debts: months to debt-free and total interest paid at their current minimum payments, vs. with an extra monthly payment applied. Use for 'how long to pay off my debt' or 'what if I pay $X more toward debt' questions. Returns an error if no debts are tracked.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        extraMonthlyPayment: {
+          type: "number",
+          description: "Extra dollars paid toward debt per month, on top of minimum payments (default 0)."
+        }
+      }
+    }
+  },
+  {
+    name: "compare_debt_vs_investing",
+    description:
+      "Compare directing an extra monthly amount at debt payoff (months and interest saved, using the user's real debts) vs. investing the same amount instead (projected growth at an assumed 7% annual return) — the same figures simulate_debt_payoff and simulate_extra_savings compute individually, returned side by side for a 'debt vs investing' question. Returns an error if no debts are tracked.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        extraMonthlyAmount: { type: "number", description: "Extra dollars available per month to direct one way or the other." }
+      },
+      required: ["extraMonthlyAmount"]
     }
   }
 ];

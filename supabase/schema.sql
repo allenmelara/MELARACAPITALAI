@@ -401,3 +401,20 @@ alter table public.ai_recommendations enable row level security;
 create policy "Users can read their AI recommendations" on public.ai_recommendations for select using (auth.uid() = user_id);
 create policy "Users can create their AI recommendations" on public.ai_recommendations for insert with check (auth.uid() = user_id);
 create policy "Users can update their AI recommendations" on public.ai_recommendations for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Phase 3: AI Financial Coach. Persisted conversation for the "Ask Melara AI"
+-- widget, but only for signed-in users — mirrors public.report_chat_messages.
+-- Anonymous visitors keep the widget's original fully-ephemeral behavior
+-- (client-side only, never written here).
+create table if not exists public.coach_messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.coach_messages enable row level security;
+
+create policy "Users can read their coach messages" on public.coach_messages for select using (auth.uid() = user_id);
+create policy "Users can create their coach messages" on public.coach_messages for insert with check (auth.uid() = user_id);

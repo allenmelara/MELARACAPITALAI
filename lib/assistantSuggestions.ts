@@ -74,6 +74,19 @@ export const SUGGESTED_QUESTIONS: Record<AssistantContext, string[]> = {
   ]
 };
 
+// Shown to signed-in users in the "Ask Melara AI" widget instead of the
+// page-context list — coach questions are relevant on any page, not tied to
+// where the user happens to be browsing.
+export const COACH_SUGGESTED_QUESTIONS: string[] = [
+  "What should I prioritize this month?",
+  "Can I afford to invest more?",
+  "How long will it take to pay off my debt?",
+  "What happens if I save another $200 monthly?",
+  "Compare paying debt versus investing.",
+  "Am I prepared for an emergency?",
+  "Explain my financial health in simple terms."
+];
+
 export type ReportChatModule = "company" | "document" | "real_estate" | "wealth";
 
 // Shown in a saved report's "Ask about this report" chat before the first

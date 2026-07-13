@@ -9,6 +9,17 @@ import { logError, logWarn } from "@/lib/logger";
 import { getQuoteChange } from "@/lib/finnhub";
 import { getMarketSnapshot } from "@/lib/marketData";
 import { getNewsFeed } from "@/lib/news";
+import { listCoachMessages, createCoachMessage } from "@/lib/coachChat";
+import {
+  getFinancialOverview,
+  getGoalsForCoach,
+  getDebtsForCoach,
+  getSpendingHistoryForCoach,
+  getPeriodSummary,
+  simulateExtraSavingsForCoach,
+  simulateDebtPayoffForCoach,
+  compareDebtVsInvestingForCoach
+} from "@/lib/coachContext";
 
 export const runtime = "nodejs";
 
@@ -44,6 +55,47 @@ async function runTool(name: string, input: Record<string, unknown>, userId: str
       }))
     };
   }
+
+  // Personal-finance coach tools — every one requires a signed-in user since
+  // they read the user's own saved data, gated the same way as get_news_headlines.
+  if (name === "get_financial_overview") {
+    if (!userId) return { error: "Not logged in — personalized coaching requires signing in." };
+    return getFinancialOverview(userId);
+  }
+  if (name === "get_goals") {
+    if (!userId) return { error: "Not logged in — personalized coaching requires signing in." };
+    return getGoalsForCoach();
+  }
+  if (name === "get_debts") {
+    if (!userId) return { error: "Not logged in — personalized coaching requires signing in." };
+    return getDebtsForCoach();
+  }
+  if (name === "get_spending_history") {
+    if (!userId) return { error: "Not logged in — personalized coaching requires signing in." };
+    return getSpendingHistoryForCoach();
+  }
+  if (name === "get_period_summary") {
+    if (!userId) return { error: "Not logged in — personalized coaching requires signing in." };
+    const period = input.period === "week" ? "week" : "month";
+    return getPeriodSummary(userId, period);
+  }
+  if (name === "simulate_extra_savings") {
+    if (!userId) return { error: "Not logged in — personalized coaching requires signing in." };
+    const extraMonthlyAmount = Number(input.extraMonthlyAmount) || 0;
+    const months = input.months !== undefined ? Number(input.months) || 12 : 12;
+    return simulateExtraSavingsForCoach(extraMonthlyAmount, months);
+  }
+  if (name === "simulate_debt_payoff") {
+    if (!userId) return { error: "Not logged in — personalized coaching requires signing in." };
+    const extraMonthlyPayment = Number(input.extraMonthlyPayment) || 0;
+    return simulateDebtPayoffForCoach(extraMonthlyPayment);
+  }
+  if (name === "compare_debt_vs_investing") {
+    if (!userId) return { error: "Not logged in — personalized coaching requires signing in." };
+    const extraMonthlyAmount = Number(input.extraMonthlyAmount) || 0;
+    return compareDebtVsInvestingForCoach(extraMonthlyAmount);
+  }
+
   return { error: `Unknown tool ${name}.` };
 }
 
@@ -61,6 +113,23 @@ const bodySchema = z.object({
     .optional()
     .default([])
 });
+
+// Hydrates the widget's conversation on mount for signed-in users — the
+// widget stays fully in-memory/ephemeral for anonymous visitors (no GET
+// needed on that path, matching today's behavior).
+export async function GET() {
+  const user = await getUser();
+  if (!user) {
+    return NextResponse.json({ loggedIn: false, messages: [] });
+  }
+  try {
+    const messages = await listCoachMessages();
+    return NextResponse.json({ loggedIn: true, messages });
+  } catch (error) {
+    logError("assistant.chat.history", error);
+    return NextResponse.json({ error: "Failed to load conversation history." }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -87,7 +156,13 @@ export async function POST(request: Request) {
 
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const recentHistory = parsed.data.history.slice(-MAX_HISTORY_MESSAGES);
+
+    // Signed-in users: trust persisted history, not whatever the client sent
+    // (more robust, and the client no longer needs to manage/replay it).
+    // Anonymous visitors: unchanged — client-managed ephemeral history.
+    const recentHistory = user
+      ? (await listCoachMessages()).slice(-MAX_HISTORY_MESSAGES)
+      : parsed.data.history.slice(-MAX_HISTORY_MESSAGES);
 
     const messages: Anthropic.MessageParam[] = [
       ...recentHistory.map((m) => ({ role: m.role, content: m.content })),
@@ -98,8 +173,8 @@ export async function POST(request: Request) {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const reply = await anthropic.messages.create({
         model: process.env.CLAUDE_MODEL || "claude-sonnet-5",
-        max_tokens: 500,
-        system: siteAssistantSystemPrompt(parsed.data.context),
+        max_tokens: user ? 900 : 500, // signed-in coach answers (summaries, action plans) run longer
+        system: siteAssistantSystemPrompt(parsed.data.context, Boolean(user)),
         tools: ASSISTANT_TOOLS,
         messages
       });
@@ -132,6 +207,15 @@ export async function POST(request: Request) {
         })
       );
       messages.push({ role: "user", content: toolResults });
+    }
+
+    if (user) {
+      try {
+        await createCoachMessage({ userId: user.id, role: "user", content: parsed.data.message });
+        await createCoachMessage({ userId: user.id, role: "assistant", content: replyText });
+      } catch (persistError) {
+        logWarn("assistant.chat.persist", persistError);
+      }
     }
 
     return NextResponse.json({ reply: replyText });

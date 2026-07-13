@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { SUGGESTED_QUESTIONS, contextFromPath } from "@/lib/assistantSuggestions";
+import { SUGGESTED_QUESTIONS, COACH_SUGGESTED_QUESTIONS, contextFromPath } from "@/lib/assistantSuggestions";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -11,10 +11,38 @@ export default function SiteAssistant() {
   const context = contextFromPath(pathname);
 
   const [open, setOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+
+  // Determines both login state and (for signed-in users) hydrates any saved
+  // conversation — a single client-side fetch after mount, so the root
+  // layout itself stays a plain static component (no per-request auth check
+  // forcing every route, including marketing pages, to render dynamically).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/assistant/chat")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setLoggedIn(Boolean(data.loggedIn));
+        if (Array.isArray(data.messages)) {
+          setMessages(data.messages.map((m: { role: "user" | "assistant"; content: string }) => ({
+            role: m.role,
+            content: m.content
+          })));
+        }
+      })
+      .catch(() => {
+        // Silent — the widget still works fully, just as the generic
+        // logged-out assistant instead of a hydrated coach.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function sendMessage(text: string) {
     const message = text.trim();
@@ -42,7 +70,7 @@ export default function SiteAssistant() {
     }
   }
 
-  const suggestions = SUGGESTED_QUESTIONS[context];
+  const suggestions = loggedIn ? COACH_SUGGESTED_QUESTIONS : SUGGESTED_QUESTIONS[context];
 
   return (
     <>
@@ -52,12 +80,18 @@ export default function SiteAssistant() {
       {open && (
         <div className="assistant-panel">
           <div className="assistant-header">
-            <strong>Melara Assistant</strong>
-            <p className="disclaimer">Product help — not investment advice.</p>
+            <strong>{loggedIn ? "Your AI financial coach" : "Melara Assistant"}</strong>
+            <p className="disclaimer">
+              {loggedIn
+                ? "Grounded in your saved data — educational only, not personalized advice."
+                : "Product help — not investment advice."}
+            </p>
           </div>
           <div className="chat-messages assistant-messages">
             {messages.length === 0 && (
-              <p className="disclaimer">Ask me anything about the site, or try one of these:</p>
+              <p className="disclaimer">
+                {loggedIn ? "Ask about your finances, or try one of these:" : "Ask me anything about the site, or try one of these:"}
+              </p>
             )}
             {messages.map((m, i) => (
               <div key={i} className={`chat-bubble chat-${m.role}`}>

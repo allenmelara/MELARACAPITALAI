@@ -513,3 +513,9 @@ alter table public.notification_preferences add column if not exists bill_remind
 -- Defaults on (5%) rather than requiring opt-in, consistent with this
 -- phase's "least manual" goal.
 alter table public.watchlist_items add column if not exists alert_threshold_pct numeric not null default 5;
+
+-- watchlist_items never had an update policy (only select/insert/delete) —
+-- with RLS enabled and no matching policy, an UPDATE silently affects zero
+-- rows instead of erroring, so this was needed the moment the table gained
+-- an editable column (alert_threshold_pct) rather than being purely add/delete.
+create policy "Users can update their watchlist items" on public.watchlist_items for update using (auth.uid() = user_id) with check (auth.uid() = user_id);

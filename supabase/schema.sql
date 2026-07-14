@@ -519,3 +519,21 @@ alter table public.watchlist_items add column if not exists alert_threshold_pct 
 -- rows instead of erroring, so this was needed the moment the table gained
 -- an editable column (alert_threshold_pct) rather than being purely add/delete.
 create policy "Users can update their watchlist items" on public.watchlist_items for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Phase 6: constrain bills.category to the same 11 categories the monthly
+-- budget form uses, so bill totals can be matched to a budget category and
+-- suggested as a starting amount instead of hand-typed every month. NOT
+-- VALID is deliberate here (unlike the notifications.type constraint above,
+-- which formalized a rule the app already enforced) — bills.category has
+-- been unvalidated free text since day one, so a plain ADD CONSTRAINT could
+-- fail outright on an existing legacy value. NOT VALID leaves existing rows
+-- untouched and only enforces the rule on new inserts/updates.
+alter table public.bills
+  add constraint bills_category_check
+  check (category is null or category in (
+    'Housing','Transportation','Food','Utilities','Insurance',
+    'Debt Payments','Entertainment','Healthcare','Personal',
+    'Savings/Investments','Other'
+  )) not valid;
+-- Optional follow-up once existing bill categories are confirmed clean:
+-- alter table public.bills validate constraint bills_category_check;

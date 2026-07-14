@@ -67,3 +67,16 @@ export function detectSpendingAnomalies(history: { categories: BudgetCategoryEnt
   }
   return anomalies;
 }
+
+// Groups tracked bills by category so their totals can be suggested as a
+// starting amount for the matching monthly-budget category. Only includes
+// categories with at least one matching bill (no zero-filling) — a category
+// absent from the result means "no bills tracked for it," distinct from "$0".
+export function sumBillsByCategory(bills: Array<{ category: string | null; amount: number }>): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const bill of bills) {
+    if (!bill.category) continue;
+    totals[bill.category] = (totals[bill.category] ?? 0) + bill.amount;
+  }
+  return totals;
+}

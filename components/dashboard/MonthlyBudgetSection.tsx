@@ -7,18 +7,40 @@ import type { MonthlyBudget } from "@/lib/monthlyBudget";
 
 export default function MonthlyBudgetSection({
   current,
-  previous
+  previous,
+  billTotals
 }: {
   current: MonthlyBudget | null;
   previous: MonthlyBudget | null;
+  billTotals: Record<string, number>;
 }) {
   const seed = current ?? previous;
   const [income, setIncome] = useState(seed ? String(seed.income) : "");
+  // A category with no seeded value (first-time budget, or one deliberately
+  // left blank) auto-fills from tracked bills — nothing is overwritten
+  // because nothing was there. A category that already has a seeded value
+  // keeps it; the user gets a "Bills total: $X · Use" hint instead of a
+  // silent overwrite, since true monthly spending in a category can exceed
+  // its tracked recurring bills (e.g. a one-off repair on top of rent).
+  const [autoFilled] = useState<Set<string>>(() => {
+    const filled = new Set<string>();
+    for (const category of BUDGET_CATEGORIES) {
+      const existing = seed?.categories.find((c) => c.category === category);
+      if (!existing && billTotals[category] !== undefined) filled.add(category);
+    }
+    return filled;
+  });
   const [amounts, setAmounts] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const category of BUDGET_CATEGORIES) {
       const existing = seed?.categories.find((c) => c.category === category);
-      initial[category] = existing ? String(existing.amount) : "";
+      if (existing) {
+        initial[category] = String(existing.amount);
+      } else if (billTotals[category] !== undefined) {
+        initial[category] = String(billTotals[category]);
+      } else {
+        initial[category] = "";
+      }
     }
     return initial;
   });
@@ -96,18 +118,36 @@ export default function MonthlyBudgetSection({
           Monthly income
           <input type="number" step="any" value={income} onChange={(e) => setIncome(e.target.value)} placeholder="6000" />
         </label>
-        {BUDGET_CATEGORIES.map((category) => (
-          <label key={category}>
-            {category}
-            <input
-              type="number"
-              step="any"
-              value={amounts[category]}
-              onChange={(e) => setAmounts((current) => ({ ...current, [category]: e.target.value }))}
-              placeholder="0"
-            />
-          </label>
-        ))}
+        {BUDGET_CATEGORIES.map((category) => {
+          const billTotal = billTotals[category];
+          const currentValue = Number(amounts[category]) || 0;
+          const showHint = billTotal !== undefined && !autoFilled.has(category) && billTotal !== currentValue;
+          return (
+            <label key={category}>
+              {category}
+              {autoFilled.has(category) && <span className="budget-category-hint"> · Pre-filled from your tracked bills</span>}
+              <input
+                type="number"
+                step="any"
+                value={amounts[category]}
+                onChange={(e) => setAmounts((current) => ({ ...current, [category]: e.target.value }))}
+                placeholder="0"
+              />
+              {showHint && (
+                <span className="budget-category-hint">
+                  Bills total: {money(billTotal)} ·{" "}
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => setAmounts((current) => ({ ...current, [category]: String(billTotal) }))}
+                  >
+                    Use
+                  </button>
+                </span>
+              )}
+            </label>
+          );
+        })}
       </div>
 
       <div className="metrics">

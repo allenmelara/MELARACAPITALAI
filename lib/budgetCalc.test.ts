@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { totalSpending, currentMonthKey, BUDGET_CATEGORIES, detectSpendingAnomalies } from "./budgetCalc";
+import { totalSpending, currentMonthKey, BUDGET_CATEGORIES, detectSpendingAnomalies, sumBillsByCategory } from "./budgetCalc";
 
 describe("totalSpending", () => {
   it("sums category amounts", () => {
@@ -64,5 +64,45 @@ describe("detectSpendingAnomalies", () => {
       { categories: [{ category: "Housing", amount: 1500 }] } // new category, no prior data
     ];
     expect(detectSpendingAnomalies(history)).toEqual([]);
+  });
+});
+
+describe("sumBillsByCategory", () => {
+  it("returns an empty object for no bills", () => {
+    expect(sumBillsByCategory([])).toEqual({});
+  });
+
+  it("sums multiple bills in the same category", () => {
+    const bills = [
+      { category: "Housing", amount: 1800 },
+      { category: "Housing", amount: 200 }
+    ];
+    expect(sumBillsByCategory(bills)).toEqual({ Housing: 2000 });
+  });
+
+  it("groups distinct categories separately", () => {
+    const bills = [
+      { category: "Housing", amount: 1800 },
+      { category: "Utilities", amount: 150 }
+    ];
+    expect(sumBillsByCategory(bills)).toEqual({ Housing: 1800, Utilities: 150 });
+  });
+
+  it("ignores bills with a null category", () => {
+    const bills = [
+      { category: null, amount: 50 },
+      { category: "Food", amount: 300 }
+    ];
+    expect(sumBillsByCategory(bills)).toEqual({ Food: 300 });
+  });
+
+  it("does not zero-fill categories with no bills", () => {
+    const totals = sumBillsByCategory([{ category: "Housing", amount: 1800 }]);
+    expect(totals.Entertainment).toBeUndefined();
+    expect(Object.keys(totals)).toEqual(["Housing"]);
+  });
+
+  it("still sums a non-canonical legacy category string as-is (no validation here)", () => {
+    expect(sumBillsByCategory([{ category: "Rent", amount: 1800 }])).toEqual({ Rent: 1800 });
   });
 });

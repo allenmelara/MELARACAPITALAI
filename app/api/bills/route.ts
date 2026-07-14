@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUser } from "@/lib/supabase/server";
 import { listBills, addBill } from "@/lib/bills";
+import { BUDGET_CATEGORIES } from "@/lib/budgetCalc";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
 
@@ -13,7 +14,7 @@ const createSchema = z.object({
   name: z.string().trim().min(1, "Enter a bill name.").max(80),
   amount: z.number().min(0).max(1_000_000),
   dueDay: z.number().int().min(1).max(31),
-  category: z.string().trim().max(40).optional(),
+  category: z.enum(BUDGET_CATEGORIES).optional(),
   autopay: z.boolean().optional()
 });
 

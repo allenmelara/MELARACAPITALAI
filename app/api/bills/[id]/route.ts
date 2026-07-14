@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUser } from "@/lib/supabase/server";
 import { deleteBill, updateBill } from "@/lib/bills";
+import { BUDGET_CATEGORIES } from "@/lib/budgetCalc";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
 
@@ -12,7 +13,7 @@ const updateSchema = z
     name: z.string().trim().min(1).max(80).optional(),
     amount: z.number().min(0).max(1_000_000).optional(),
     dueDay: z.number().int().min(1).max(31).optional(),
-    category: z.string().trim().max(40).optional(),
+    category: z.enum(BUDGET_CATEGORIES).optional(),
     autopay: z.boolean().optional()
   })
   .refine((data) => Object.keys(data).length > 0, { message: "No fields to update." });

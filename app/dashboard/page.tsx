@@ -14,6 +14,7 @@ import { listGoals, syncLinkedGoalProgress } from "@/lib/financialGoals";
 import { getWatchlistWithQuotes } from "@/lib/watchlist";
 import { listHoldings } from "@/lib/portfolio";
 import { getCurrentMonthBudget, getBudgetHistory } from "@/lib/monthlyBudget";
+import { sumBillsByCategory } from "@/lib/budgetCalc";
 import { getNetWorthSummary, getEmergencyFundProgress, getRetirementProgress } from "@/lib/netWorth";
 import MarketDashboard from "@/components/MarketDashboard";
 import OnboardingNudge from "@/components/OnboardingNudge";
@@ -109,6 +110,7 @@ export default async function DashboardPage({
   const firstName = user?.email ? user.email.split("@")[0] : "";
   const showOnboardingNudge = !financialProfile?.onboardingCompletedAt && !financialProfile?.onboardingSkipped;
   const upcomingBills = withNextDueDate(bills);
+  const billTotals = sumBillsByCategory(bills);
 
   return (
     <>
@@ -163,7 +165,7 @@ export default async function DashboardPage({
       </div>
 
       <div id="monthly-budget">
-        <MonthlyBudgetSection current={currentBudget} previous={previousBudget} />
+        <MonthlyBudgetSection current={currentBudget} previous={previousBudget} billTotals={billTotals} />
       </div>
 
       <div className="dash-columns" style={{ marginBottom: 20 }}>

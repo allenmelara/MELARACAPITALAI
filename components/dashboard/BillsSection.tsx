@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { money } from "@/lib/finance";
+import { BUDGET_CATEGORIES } from "@/lib/budgetCalc";
 import type { Bill } from "@/lib/bills";
 
 export default function BillsSection({ initialBills }: { initialBills: Bill[] }) {
@@ -15,6 +16,7 @@ export default function BillsSection({ initialBills }: { initialBills: Bill[] })
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editOriginal, setEditOriginal] = useState<Bill | null>(null);
   const [editDraft, setEditDraft] = useState<{
     name: string;
     amount: string;
@@ -79,6 +81,7 @@ export default function BillsSection({ initialBills }: { initialBills: Bill[] })
 
   function startEdit(bill: Bill) {
     setEditingId(bill.id);
+    setEditOriginal(bill);
     setEditDraft({
       name: bill.name,
       amount: String(bill.amount),
@@ -89,7 +92,13 @@ export default function BillsSection({ initialBills }: { initialBills: Bill[] })
     setError("");
   }
 
+  // Diffs against the original bill and only PATCHes changed fields — a
+  // bill whose category is a legacy free-text value (from before category
+  // became an enum) would otherwise fail the whole update the moment
+  // category is included unchanged, even for an edit to an unrelated field
+  // like amount.
   async function handleUpdate(id: string) {
+    if (!editOriginal) return;
     const amountNum = Number(editDraft.amount);
     const dueDayNum = Number(editDraft.dueDay);
     if (!editDraft.name.trim() || !(amountNum >= 0) || !(dueDayNum >= 1 && dueDayNum <= 31)) {
@@ -97,18 +106,27 @@ export default function BillsSection({ initialBills }: { initialBills: Bill[] })
       return;
     }
     setError("");
+
+    const body: Record<string, unknown> = {};
+    const nameTrimmed = editDraft.name.trim();
+    if (nameTrimmed !== editOriginal.name) body.name = nameTrimmed;
+    if (amountNum !== editOriginal.amount) body.amount = amountNum;
+    if (dueDayNum !== editOriginal.dueDay) body.dueDay = dueDayNum;
+    const categoryValue = editDraft.category || null;
+    if (categoryValue !== editOriginal.category) body.category = categoryValue ?? undefined;
+    if (editDraft.autopay !== editOriginal.autopay) body.autopay = editDraft.autopay;
+
+    if (Object.keys(body).length === 0) {
+      setEditingId(null);
+      return;
+    }
+
     setUpdatingId(id);
     try {
       const response = await fetch(`/api/bills/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editDraft.name.trim(),
-          amount: amountNum,
-          dueDay: dueDayNum,
-          category: editDraft.category.trim() || undefined,
-          autopay: editDraft.autopay
-        })
+        body: JSON.stringify(body)
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to update bill.");
@@ -159,7 +177,14 @@ export default function BillsSection({ initialBills }: { initialBills: Bill[] })
         </label>
         <label>
           Category (optional)
-          <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Housing" disabled={adding} />
+          <select value={category} onChange={(e) => setCategory(e.target.value)} disabled={adding}>
+            <option value="">None</option>
+            {BUDGET_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="checkbox-row">
           <input type="checkbox" checked={autopay} onChange={(e) => setAutopay(e.target.checked)} disabled={adding} />
@@ -212,10 +237,23 @@ export default function BillsSection({ initialBills }: { initialBills: Bill[] })
                     />
                   </td>
                   <td>
-                    <input
+                    <select
                       value={editDraft.category}
                       onChange={(e) => setEditDraft((v) => ({ ...v, category: e.target.value }))}
-                    />
+                    >
+                      <option value="">None</option>
+                      {/* A legacy free-text category (from before category became an enum)
+                          gets its own option so the field round-trips correctly instead of
+                          silently defaulting away from the real stored value. */}
+                      {b.category && !(BUDGET_CATEGORIES as readonly string[]).includes(b.category) && (
+                        <option value={b.category}>{b.category} (legacy)</option>
+                      )}
+                      {BUDGET_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td>
                     <input

@@ -99,6 +99,17 @@ function profileToAnswers(profile: FinancialProfile | null): Answers {
   };
 }
 
+// Clamps a numeric text-input value into [min, max] on blur — the HTML max
+// attribute alone doesn't stop someone from typing past it, so without this
+// an out-of-range value silently survives every wizard step and only
+// surfaces as a generic Zod error on the final "Save & finish" click.
+function clampNumberString(value: string, min: number, max: number): string {
+  if (value === "") return value;
+  const num = Number(value);
+  if (Number.isNaN(num)) return value;
+  return String(Math.min(max, Math.max(min, num)));
+}
+
 function buildPayload(answers: Answers, opts: { complete?: boolean; consent?: boolean }): FinancialProfileInput {
   const payload: FinancialProfileInput = { usedEstimatedValues: answers.usedEstimatedValues };
   if (answers.ageRange) payload.ageRange = answers.ageRange as FinancialProfileInput["ageRange"];
@@ -402,9 +413,10 @@ function StepGoals({
           <input
             type="number"
             min="0"
-            max="24"
+            max="120"
             value={answers.emergencyFundGoalMonths}
             onChange={(e) => onUpdate("emergencyFundGoalMonths", e.target.value)}
+            onBlur={(e) => onUpdate("emergencyFundGoalMonths", clampNumberString(e.target.value, 0, 120))}
           />
         </label>
         <label>
@@ -412,9 +424,10 @@ function StepGoals({
           <input
             type="number"
             min="1"
-            max="100"
+            max="120"
             value={answers.retirementGoalAge}
             onChange={(e) => onUpdate("retirementGoalAge", e.target.value)}
+            onBlur={(e) => onUpdate("retirementGoalAge", clampNumberString(e.target.value, 1, 120))}
           />
         </label>
         <label>

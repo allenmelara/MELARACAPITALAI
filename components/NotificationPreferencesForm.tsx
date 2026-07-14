@@ -10,7 +10,9 @@ const TYPE_LABELS: Array<{ key: keyof Omit<NotificationPreferences, "updatedAt" 
   { key: "goalMilestone", label: "Goal milestones" },
   { key: "streakMilestone", label: "Streak milestones" },
   { key: "scoreChange", label: "Financial health score changes" },
-  { key: "budgetChallenge", label: "Budget challenges" }
+  { key: "budgetChallenge", label: "Budget challenges" },
+  { key: "billReminders", label: "Bill reminders" },
+  { key: "priceAlerts", label: "Watchlist price alerts" }
 ];
 
 export default function NotificationPreferencesForm({ initial }: { initial: NotificationPreferences }) {

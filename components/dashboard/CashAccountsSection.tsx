@@ -19,6 +19,13 @@ export default function CashAccountsSection({ initialAccounts }: { initialAccoun
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{ name: string; accountType: CashAccountType; balance: string }>({
+    name: "",
+    accountType: "checking",
+    balance: ""
+  });
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   async function refresh() {
     const response = await fetch("/api/cash-accounts");
@@ -61,6 +68,37 @@ export default function CashAccountsSection({ initialAccounts }: { initialAccoun
       await refresh();
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  function startEdit(account: CashAccount) {
+    setEditingId(account.id);
+    setEditDraft({ name: account.name, accountType: account.accountType, balance: String(account.balance) });
+    setError("");
+  }
+
+  async function handleUpdate(id: string) {
+    const balanceNum = Number(editDraft.balance);
+    if (!editDraft.name.trim() || !(balanceNum >= 0)) {
+      setError("Enter an account name and a balance of 0 or more.");
+      return;
+    }
+    setError("");
+    setUpdatingId(id);
+    try {
+      const response = await fetch(`/api/cash-accounts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editDraft.name.trim(), accountType: editDraft.accountType, balance: balanceNum })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update account.");
+      setEditingId(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update account.");
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -127,22 +165,64 @@ export default function CashAccountsSection({ initialAccounts }: { initialAccoun
             </tr>
           </thead>
           <tbody>
-            {accounts.map((a) => (
-              <tr key={a.id}>
-                <td>{a.name}</td>
-                <td>{TYPE_LABELS[a.accountType]}</td>
-                <td>{money(a.balance)}</td>
-                <td>
-                  <button
-                    className="secondary portfolio-remove"
-                    onClick={() => handleDelete(a.id)}
-                    disabled={deletingId === a.id}
-                  >
-                    {deletingId === a.id ? "..." : "Remove"}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {accounts.map((a) =>
+              editingId === a.id ? (
+                <tr key={a.id}>
+                  <td>
+                    <input value={editDraft.name} onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} />
+                  </td>
+                  <td>
+                    <select
+                      value={editDraft.accountType}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, accountType: e.target.value as CashAccountType }))}
+                    >
+                      <option value="checking">Checking</option>
+                      <option value="savings">Savings</option>
+                      <option value="emergency_fund">Emergency fund</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editDraft.balance}
+                      onChange={(e) => setEditDraft((d) => ({ ...d, balance: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      className="secondary portfolio-remove"
+                      onClick={() => handleUpdate(a.id)}
+                      disabled={updatingId === a.id}
+                    >
+                      {updatingId === a.id ? "..." : "Save"}
+                    </button>
+                    <button className="secondary portfolio-remove" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={a.id}>
+                  <td>{a.name}</td>
+                  <td>{TYPE_LABELS[a.accountType]}</td>
+                  <td>{money(a.balance)}</td>
+                  <td>
+                    <button className="secondary portfolio-remove" onClick={() => startEdit(a)}>
+                      Edit
+                    </button>
+                    <button
+                      className="secondary portfolio-remove"
+                      onClick={() => handleDelete(a.id)}
+                      disabled={deletingId === a.id}
+                    >
+                      {deletingId === a.id ? "..." : "Remove"}
+                    </button>
+                  </td>
+                </tr>
+              )
+            )}
           </tbody>
         </table>
       )}

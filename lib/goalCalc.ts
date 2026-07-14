@@ -34,3 +34,29 @@ export function calculateGoalProjection(goal: FinancialGoal): {
 
   return { series, requiredMonthlyContribution };
 }
+
+// Auto-linked goal progress (Phase 5): emergency_fund/retirement goals sync
+// to already-computed account data instead of a manually-typed number —
+// other categories have no equally unambiguous single-source mapping and
+// stay manual. Skips a goal whose current value is already within
+// LINK_EPSILON of its target, since currentAmount round-trips through
+// Postgres numeric as a JS float and an exact equality check would cause
+// pointless writes.
+const LINK_EPSILON = 0.005;
+
+export function computeLinkedGoalUpdates(
+  goals: FinancialGoal[],
+  sources: { emergencyFundCash: number; investmentsTotal: number }
+): Array<{ id: string; target: number }> {
+  return goals
+    .map((goal) => {
+      const target =
+        goal.category === "emergency_fund"
+          ? sources.emergencyFundCash
+          : goal.category === "retirement"
+            ? sources.investmentsTotal
+            : null;
+      return target !== null && Math.abs(goal.currentAmount - target) > LINK_EPSILON ? { id: goal.id, target } : null;
+    })
+    .filter((u): u is { id: string; target: number } => u !== null);
+}

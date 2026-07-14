@@ -23,6 +23,15 @@ export default function DebtsSection({ initialDebts }: { initialDebts: Debt[] })
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    name: string;
+    debtType: DebtType;
+    balance: string;
+    interestRate: string;
+    minimumPayment: string;
+  }>({ name: "", debtType: "credit_card", balance: "", interestRate: "", minimumPayment: "" });
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   async function refresh() {
     const response = await fetch("/api/debts");
@@ -73,6 +82,49 @@ export default function DebtsSection({ initialDebts }: { initialDebts: Debt[] })
       await refresh();
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  function startEdit(debt: Debt) {
+    setEditingId(debt.id);
+    setEditDraft({
+      name: debt.name,
+      debtType: debt.debtType,
+      balance: String(debt.balance),
+      interestRate: debt.interestRate !== null ? String(debt.interestRate) : "",
+      minimumPayment: debt.minimumPayment !== null ? String(debt.minimumPayment) : ""
+    });
+    setError("");
+  }
+
+  async function handleUpdate(id: string) {
+    const balanceNum = Number(editDraft.balance);
+    if (!editDraft.name.trim() || !(balanceNum >= 0)) {
+      setError("Enter a debt name and a balance of 0 or more.");
+      return;
+    }
+    setError("");
+    setUpdatingId(id);
+    try {
+      const response = await fetch(`/api/debts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editDraft.name.trim(),
+          debtType: editDraft.debtType,
+          balance: balanceNum,
+          interestRate: editDraft.interestRate ? Number(editDraft.interestRate) : undefined,
+          minimumPayment: editDraft.minimumPayment ? Number(editDraft.minimumPayment) : undefined
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update debt.");
+      setEditingId(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update debt.");
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -165,24 +217,84 @@ export default function DebtsSection({ initialDebts }: { initialDebts: Debt[] })
             </tr>
           </thead>
           <tbody>
-            {debts.map((d) => (
-              <tr key={d.id}>
-                <td>{d.name}</td>
-                <td>{TYPE_LABELS[d.debtType]}</td>
-                <td>{money(d.balance)}</td>
-                <td>{d.interestRate !== null ? `${d.interestRate.toFixed(2)}%` : "—"}</td>
-                <td>{d.minimumPayment !== null ? money(d.minimumPayment) : "—"}</td>
-                <td>
-                  <button
-                    className="secondary portfolio-remove"
-                    onClick={() => handleDelete(d.id)}
-                    disabled={deletingId === d.id}
-                  >
-                    {deletingId === d.id ? "..." : "Remove"}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {debts.map((d) =>
+              editingId === d.id ? (
+                <tr key={d.id}>
+                  <td>
+                    <input value={editDraft.name} onChange={(e) => setEditDraft((v) => ({ ...v, name: e.target.value }))} />
+                  </td>
+                  <td>
+                    <select
+                      value={editDraft.debtType}
+                      onChange={(e) => setEditDraft((v) => ({ ...v, debtType: e.target.value as DebtType }))}
+                    >
+                      <option value="credit_card">Credit card</option>
+                      <option value="student_loan">Student loan</option>
+                      <option value="auto_loan">Auto loan</option>
+                      <option value="mortgage">Mortgage</option>
+                      <option value="personal_loan">Personal loan</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editDraft.balance}
+                      onChange={(e) => setEditDraft((v) => ({ ...v, balance: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editDraft.interestRate}
+                      onChange={(e) => setEditDraft((v) => ({ ...v, interestRate: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editDraft.minimumPayment}
+                      onChange={(e) => setEditDraft((v) => ({ ...v, minimumPayment: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      className="secondary portfolio-remove"
+                      onClick={() => handleUpdate(d.id)}
+                      disabled={updatingId === d.id}
+                    >
+                      {updatingId === d.id ? "..." : "Save"}
+                    </button>
+                    <button className="secondary portfolio-remove" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={d.id}>
+                  <td>{d.name}</td>
+                  <td>{TYPE_LABELS[d.debtType]}</td>
+                  <td>{money(d.balance)}</td>
+                  <td>{d.interestRate !== null ? `${d.interestRate.toFixed(2)}%` : "—"}</td>
+                  <td>{d.minimumPayment !== null ? money(d.minimumPayment) : "—"}</td>
+                  <td>
+                    <button className="secondary portfolio-remove" onClick={() => startEdit(d)}>
+                      Edit
+                    </button>
+                    <button
+                      className="secondary portfolio-remove"
+                      onClick={() => handleDelete(d.id)}
+                      disabled={deletingId === d.id}
+                    >
+                      {deletingId === d.id ? "..." : "Remove"}
+                    </button>
+                  </td>
+                </tr>
+              )
+            )}
           </tbody>
         </table>
       )}

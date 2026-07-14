@@ -59,6 +59,27 @@ export async function addDebt(
   };
 }
 
+export async function updateDebt(
+  id: string,
+  params: {
+    name?: string;
+    debtType?: DebtType;
+    balance?: number;
+    interestRate?: number;
+    minimumPayment?: number;
+  }
+): Promise<void> {
+  const supabase = await createClient();
+  const row: Record<string, unknown> = {};
+  if (params.name !== undefined) row.name = params.name;
+  if (params.debtType !== undefined) row.debt_type = params.debtType;
+  if (params.balance !== undefined) row.balance = params.balance;
+  if (params.interestRate !== undefined) row.interest_rate = params.interestRate;
+  if (params.minimumPayment !== undefined) row.minimum_payment = params.minimumPayment;
+  const { error } = await supabase.from("debts").update(row).eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteDebt(id: string): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.from("debts").delete().eq("id", id);

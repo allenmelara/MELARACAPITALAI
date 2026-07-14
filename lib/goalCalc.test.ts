@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateGoalProjection } from "./goalCalc";
+import { calculateGoalProjection, computeLinkedGoalUpdates } from "./goalCalc";
 import type { FinancialGoal } from "./financialGoals";
 
 function makeGoal(overrides: Partial<FinancialGoal> = {}): FinancialGoal {
@@ -40,5 +40,43 @@ describe("calculateGoalProjection", () => {
 
     const { requiredMonthlyContribution } = calculateGoalProjection(goal);
     expect(requiredMonthlyContribution).toBe(0);
+  });
+});
+
+describe("computeLinkedGoalUpdates", () => {
+  it("syncs an emergency_fund goal to the cash-account figure", () => {
+    const goal = makeGoal({ id: "ef", category: "emergency_fund", currentAmount: 1000 });
+    const updates = computeLinkedGoalUpdates([goal], { emergencyFundCash: 4500, investmentsTotal: 0 });
+    expect(updates).toEqual([{ id: "ef", target: 4500 }]);
+  });
+
+  it("syncs a retirement goal to the investments total", () => {
+    const goal = makeGoal({ id: "ret", category: "retirement", currentAmount: 10_000 });
+    const updates = computeLinkedGoalUpdates([goal], { emergencyFundCash: 0, investmentsTotal: 82_000 });
+    expect(updates).toEqual([{ id: "ret", target: 82_000 }]);
+  });
+
+  it("leaves unlinkable categories untouched", () => {
+    const goal = makeGoal({ id: "home", category: "home", currentAmount: 1000 });
+    const updates = computeLinkedGoalUpdates([goal], { emergencyFundCash: 4500, investmentsTotal: 82_000 });
+    expect(updates).toEqual([]);
+  });
+
+  it("skips a goal already within epsilon of its target to avoid pointless writes", () => {
+    const goal = makeGoal({ id: "ef", category: "emergency_fund", currentAmount: 4500.001 });
+    const updates = computeLinkedGoalUpdates([goal], { emergencyFundCash: 4500, investmentsTotal: 0 });
+    expect(updates).toEqual([]);
+  });
+
+  it("updates multiple goals sharing the same category to the same figure", () => {
+    const goals = [
+      makeGoal({ id: "ef1", category: "emergency_fund", currentAmount: 0, targetAmount: 3000 }),
+      makeGoal({ id: "ef2", category: "emergency_fund", currentAmount: 0, targetAmount: 6000 })
+    ];
+    const updates = computeLinkedGoalUpdates(goals, { emergencyFundCash: 4500, investmentsTotal: 0 });
+    expect(updates).toEqual([
+      { id: "ef1", target: 4500 },
+      { id: "ef2", target: 4500 }
+    ]);
   });
 });

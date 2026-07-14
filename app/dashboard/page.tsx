@@ -10,7 +10,7 @@ import { listCashAccounts } from "@/lib/cashAccounts";
 import { listDebts } from "@/lib/debts";
 import { listRealEstateHoldings } from "@/lib/realEstateHoldings";
 import { listBills, withNextDueDate } from "@/lib/bills";
-import { listGoals } from "@/lib/financialGoals";
+import { listGoals, syncLinkedGoalProgress } from "@/lib/financialGoals";
 import { getWatchlistWithQuotes } from "@/lib/watchlist";
 import { listHoldings } from "@/lib/portfolio";
 import { getCurrentMonthBudget, getBudgetHistory } from "@/lib/monthlyBudget";
@@ -60,7 +60,7 @@ export default async function DashboardPage({
     debts,
     realEstateHoldings,
     bills,
-    goals,
+    initialGoals,
     watchlist,
     holdings,
     budgetHistory,
@@ -83,6 +83,20 @@ export default async function DashboardPage({
     getCurrentMonthBudget(),
     getNetWorthSummary(user.id)
   ]);
+
+  // Auto-sync emergency_fund/retirement goal progress from data already
+  // fetched above — zero new external calls. Re-read afterward so this
+  // render reflects the synced values immediately rather than waiting for
+  // the next page load.
+  const emergencyFundFlagged = cashAccounts.filter((a) => a.accountType === "emergency_fund");
+  const emergencyFundCash =
+    emergencyFundFlagged.length > 0
+      ? emergencyFundFlagged.reduce((sum, a) => sum + a.balance, 0)
+      : cashAccounts.reduce((sum, a) => sum + a.balance, 0);
+  await syncLinkedGoalProgress({ emergencyFundCash, investmentsTotal: netWorth.investments });
+  const goals = initialGoals.some((g) => g.category === "emergency_fund" || g.category === "retirement")
+    ? await listGoals()
+    : initialGoals;
 
   const previousBudget = budgetHistory.length > 0 ? budgetHistory[budgetHistory.length - 1] : null;
   const [emergencyFundProgress, retirementProgress] = await Promise.all([

@@ -13,6 +13,13 @@ export default function RealEstateHoldingsSection({ initialHoldings }: { initial
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{ name: string; estimatedValue: string; mortgageBalance: string }>({
+    name: "",
+    estimatedValue: "",
+    mortgageBalance: ""
+  });
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   async function refresh() {
     const response = await fetch("/api/real-estate-holdings");
@@ -59,6 +66,45 @@ export default function RealEstateHoldingsSection({ initialHoldings }: { initial
       await refresh();
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  function startEdit(holding: RealEstateHolding) {
+    setEditingId(holding.id);
+    setEditDraft({
+      name: holding.name,
+      estimatedValue: String(holding.estimatedValue),
+      mortgageBalance: String(holding.mortgageBalance)
+    });
+    setError("");
+  }
+
+  async function handleUpdate(id: string) {
+    const valueNum = Number(editDraft.estimatedValue);
+    if (!editDraft.name.trim() || !(valueNum >= 0)) {
+      setError("Enter a property name and an estimated value of 0 or more.");
+      return;
+    }
+    setError("");
+    setUpdatingId(id);
+    try {
+      const response = await fetch(`/api/real-estate-holdings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editDraft.name.trim(),
+          estimatedValue: valueNum,
+          mortgageBalance: editDraft.mortgageBalance ? Number(editDraft.mortgageBalance) : undefined
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update property.");
+      setEditingId(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update property.");
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -129,23 +175,67 @@ export default function RealEstateHoldingsSection({ initialHoldings }: { initial
             </tr>
           </thead>
           <tbody>
-            {holdings.map((h) => (
-              <tr key={h.id}>
-                <td>{h.name}</td>
-                <td>{money(h.estimatedValue)}</td>
-                <td>{money(h.mortgageBalance)}</td>
-                <td>{money(h.estimatedValue - h.mortgageBalance)}</td>
-                <td>
-                  <button
-                    className="secondary portfolio-remove"
-                    onClick={() => handleDelete(h.id)}
-                    disabled={deletingId === h.id}
-                  >
-                    {deletingId === h.id ? "..." : "Remove"}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {holdings.map((h) =>
+              editingId === h.id ? (
+                <tr key={h.id}>
+                  <td>
+                    <input value={editDraft.name} onChange={(e) => setEditDraft((v) => ({ ...v, name: e.target.value }))} />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editDraft.estimatedValue}
+                      onChange={(e) => setEditDraft((v) => ({ ...v, estimatedValue: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editDraft.mortgageBalance}
+                      onChange={(e) => setEditDraft((v) => ({ ...v, mortgageBalance: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    {money(
+                      (Number(editDraft.estimatedValue) || 0) - (Number(editDraft.mortgageBalance) || 0)
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      className="secondary portfolio-remove"
+                      onClick={() => handleUpdate(h.id)}
+                      disabled={updatingId === h.id}
+                    >
+                      {updatingId === h.id ? "..." : "Save"}
+                    </button>
+                    <button className="secondary portfolio-remove" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={h.id}>
+                  <td>{h.name}</td>
+                  <td>{money(h.estimatedValue)}</td>
+                  <td>{money(h.mortgageBalance)}</td>
+                  <td>{money(h.estimatedValue - h.mortgageBalance)}</td>
+                  <td>
+                    <button className="secondary portfolio-remove" onClick={() => startEdit(h)}>
+                      Edit
+                    </button>
+                    <button
+                      className="secondary portfolio-remove"
+                      onClick={() => handleDelete(h.id)}
+                      disabled={deletingId === h.id}
+                    >
+                      {deletingId === h.id ? "..." : "Remove"}
+                    </button>
+                  </td>
+                </tr>
+              )
+            )}
           </tbody>
         </table>
       )}

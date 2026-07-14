@@ -192,20 +192,28 @@ export default function GoalsTracker({ initialGoals }: { initialGoals: Financial
                 </div>
                 {g.targetDate && <p className="disclaimer goal-date">Target date: {g.targetDate}</p>}
                 <div className="goal-actions">
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Update progress"
-                    value={progressDrafts[g.id] ?? ""}
-                    onChange={(e) => setProgressDrafts((current) => ({ ...current, [g.id]: e.target.value }))}
-                  />
-                  <button
-                    className="secondary"
-                    onClick={() => handleSaveProgress(g.id)}
-                    disabled={savingId === g.id || progressDrafts[g.id] === undefined}
-                  >
-                    {savingId === g.id ? "Saving..." : "Save"}
-                  </button>
+                  {g.category === "emergency_fund" || g.category === "retirement" ? (
+                    <p className="disclaimer" style={{ margin: 0 }}>
+                      Synced automatically from your {g.category === "emergency_fund" ? "cash accounts" : "investments"}.
+                    </p>
+                  ) : (
+                    <>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="Update progress"
+                        value={progressDrafts[g.id] ?? ""}
+                        onChange={(e) => setProgressDrafts((current) => ({ ...current, [g.id]: e.target.value }))}
+                      />
+                      <button
+                        className="secondary"
+                        onClick={() => handleSaveProgress(g.id)}
+                        disabled={savingId === g.id || progressDrafts[g.id] === undefined}
+                      >
+                        {savingId === g.id ? "Saving..." : "Save"}
+                      </button>
+                    </>
+                  )}
                   <button className="secondary" onClick={() => handleDelete(g.id)} disabled={deletingId === g.id}>
                     {deletingId === g.id ? "..." : "Remove"}
                   </button>

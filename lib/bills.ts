@@ -57,6 +57,21 @@ export async function addBill(
   };
 }
 
+export async function updateBill(
+  id: string,
+  params: { name?: string; amount?: number; dueDay?: number; category?: string; autopay?: boolean }
+): Promise<void> {
+  const supabase = await createClient();
+  const row: Record<string, unknown> = {};
+  if (params.name !== undefined) row.name = params.name;
+  if (params.amount !== undefined) row.amount = params.amount;
+  if (params.dueDay !== undefined) row.due_day = params.dueDay;
+  if (params.category !== undefined) row.category = params.category;
+  if (params.autopay !== undefined) row.autopay = params.autopay;
+  const { error } = await supabase.from("bills").update(row).eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteBill(id: string): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.from("bills").delete().eq("id", id);

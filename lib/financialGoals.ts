@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { computeLinkedGoalUpdates } from "@/lib/goalCalc";
 
 export type GoalCategory =
   | "emergency_fund"
@@ -75,13 +76,30 @@ export async function updateGoalProgress(id: string, currentAmount: number): Pro
   if (error) throw error;
 }
 
+// Auto-syncs progress for goals whose category has an unambiguous single
+// source of truth already computed elsewhere in the app — emergency_fund
+// (cash accounts flagged emergency_fund) and retirement (portfolio total
+// value). Other categories (home/debt_payoff/education/business/general)
+// have no equally clean mapping and stay manually tracked. The pure
+// diffing logic lives in lib/goalCalc.ts so it's unit-testable without a
+// Supabase client — see computeLinkedGoalUpdates.
+export async function syncLinkedGoalProgress(params: {
+  emergencyFundCash: number;
+  investmentsTotal: number;
+}): Promise<void> {
+  const goals = await listGoals();
+  const updates = computeLinkedGoalUpdates(goals, params);
+  await Promise.all(updates.map((u) => updateGoalProgress(u.id, u.target)));
+}
+
 export async function deleteGoal(id: string): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.from("financial_goals").delete().eq("id", id);
   if (error) throw error;
 }
 
-// The pure calculateGoalProjection calculator lives in lib/goalCalc.ts, split
-// out so client components can import it without pulling this file's
-// supabase/server (next/headers) dependency into the browser bundle.
-export { calculateGoalProjection, type GoalProjectionPoint } from "@/lib/goalCalc";
+// The pure calculateGoalProjection/computeLinkedGoalUpdates calculators live
+// in lib/goalCalc.ts, split out so client components can import the former
+// without pulling this file's supabase/server (next/headers) dependency
+// into the browser bundle, and so the latter is unit-testable.
+export { calculateGoalProjection, type GoalProjectionPoint, computeLinkedGoalUpdates } from "@/lib/goalCalc";

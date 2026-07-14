@@ -9,6 +9,8 @@ export type NotificationPreferences = {
   streakMilestone: boolean;
   scoreChange: boolean;
   budgetChallenge: boolean;
+  priceAlerts: boolean;
+  billReminders: boolean;
   emailEnabled: boolean;
   inAppEnabled: boolean;
   updatedAt: string;
@@ -27,6 +29,8 @@ export const DEFAULT_PREFERENCES: Omit<NotificationPreferences, "updatedAt"> = {
   streakMilestone: true,
   scoreChange: true,
   budgetChallenge: true,
+  priceAlerts: true,
+  billReminders: true,
   emailEnabled: true,
   inAppEnabled: true
 };
@@ -39,6 +43,8 @@ export const notificationPreferencesInputSchema = z.object({
   streakMilestone: z.boolean().optional(),
   scoreChange: z.boolean().optional(),
   budgetChallenge: z.boolean().optional(),
+  priceAlerts: z.boolean().optional(),
+  billReminders: z.boolean().optional(),
   emailEnabled: z.boolean().optional(),
   inAppEnabled: z.boolean().optional()
 });
@@ -47,7 +53,7 @@ export type NotificationPreferencesInput = z.infer<typeof notificationPreference
 
 const COLUMNS =
   "daily_checkin, weekly_recap, monthly_report, goal_milestone, streak_milestone, score_change, " +
-  "budget_challenge, email_enabled, in_app_enabled, updated_at";
+  "budget_challenge, price_alerts, bill_reminders, email_enabled, in_app_enabled, updated_at";
 
 type NotificationPreferencesRow = {
   daily_checkin: boolean;
@@ -57,6 +63,8 @@ type NotificationPreferencesRow = {
   streak_milestone: boolean;
   score_change: boolean;
   budget_challenge: boolean;
+  price_alerts: boolean;
+  bill_reminders: boolean;
   email_enabled: boolean;
   in_app_enabled: boolean;
   updated_at: string;
@@ -71,6 +79,8 @@ function toPreferences(row: NotificationPreferencesRow): NotificationPreferences
     streakMilestone: row.streak_milestone,
     scoreChange: row.score_change,
     budgetChallenge: row.budget_challenge,
+    priceAlerts: row.price_alerts,
+    billReminders: row.bill_reminders,
     emailEnabled: row.email_enabled,
     inAppEnabled: row.in_app_enabled,
     updatedAt: row.updated_at
@@ -100,6 +110,8 @@ export async function upsertNotificationPreferences(
     streak_milestone: input.streakMilestone,
     score_change: input.scoreChange,
     budget_challenge: input.budgetChallenge,
+    price_alerts: input.priceAlerts,
+    bill_reminders: input.billReminders,
     email_enabled: input.emailEnabled,
     in_app_enabled: input.inAppEnabled,
     updated_at: new Date().toISOString()

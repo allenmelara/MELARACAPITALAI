@@ -491,3 +491,25 @@ alter table public.notification_preferences enable row level security;
 create policy "Users can read their notification preferences" on public.notification_preferences for select using (auth.uid() = user_id);
 create policy "Users can create their notification preferences" on public.notification_preferences for insert with check (auth.uid() = user_id);
 create policy "Users can update their notification preferences" on public.notification_preferences for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Phase 5: Autopilot Tier 1. Two new proactive notification types (bill
+-- reminders, watchlist price moves) plus a dedupe mechanism so one-time
+-- events (a goal completing, a streak milestone, a score jump) fire exactly
+-- once ever instead of every cron run. dedupe_key is a PLAIN (non-partial)
+-- unique constraint deliberately — a partial unique index can't be used as
+-- a Postgres/PostgREST upsert conflict target, but a plain constraint works
+-- correctly since Postgres treats every NULL as distinct from every other
+-- NULL, so the existing daily_checkin/weekly_recap/monthly_report rows
+-- (dedupe_key left null) never spuriously conflict with each other.
+alter table public.notifications drop constraint if exists notifications_type_check;
+alter table public.notifications add constraint notifications_type_check check (type in ('daily_checkin', 'weekly_recap', 'monthly_report', 'goal_milestone', 'streak_milestone', 'score_change', 'budget_challenge', 'price_alert', 'bill_due'));
+alter table public.notifications add column if not exists dedupe_key text;
+alter table public.notifications add constraint notifications_user_dedupe_key_unique unique (user_id, dedupe_key);
+
+alter table public.notification_preferences add column if not exists price_alerts boolean not null default true;
+alter table public.notification_preferences add column if not exists bill_reminders boolean not null default true;
+
+-- Per-symbol move threshold that triggers a price_alert notification.
+-- Defaults on (5%) rather than requiring opt-in, consistent with this
+-- phase's "least manual" goal.
+alter table public.watchlist_items add column if not exists alert_threshold_pct numeric not null default 5;

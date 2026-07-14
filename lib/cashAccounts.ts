@@ -49,6 +49,19 @@ export async function addCashAccount(
   };
 }
 
+export async function updateCashAccount(
+  id: string,
+  params: { name?: string; accountType?: CashAccountType; balance?: number }
+): Promise<void> {
+  const supabase = await createClient();
+  const row: Record<string, unknown> = {};
+  if (params.name !== undefined) row.name = params.name;
+  if (params.accountType !== undefined) row.account_type = params.accountType;
+  if (params.balance !== undefined) row.balance = params.balance;
+  const { error } = await supabase.from("cash_accounts").update(row).eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteCashAccount(id: string): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.from("cash_accounts").delete().eq("id", id);

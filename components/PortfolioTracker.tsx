@@ -40,6 +40,7 @@ export default function PortfolioTracker({
   const [watchAdding, setWatchAdding] = useState(false);
   const [watchError, setWatchError] = useState("");
   const [watchDeletingId, setWatchDeletingId] = useState<string | null>(null);
+  const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, string>>({});
 
   async function refresh() {
     const response = await fetch("/api/portfolio");
@@ -85,6 +86,34 @@ export default function PortfolioTracker({
       await refreshWatchlist();
     } finally {
       setWatchDeletingId(null);
+    }
+  }
+
+  async function handleThresholdBlur(id: string, currentValue: number) {
+    const draft = thresholdDrafts[id];
+    if (draft === undefined) return;
+    const value = Number(draft);
+    if (!(value >= 0) || value === currentValue) {
+      setThresholdDrafts((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    try {
+      await fetch(`/api/watchlist/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alertThresholdPct: value })
+      });
+      await refreshWatchlist();
+    } finally {
+      setThresholdDrafts((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
     }
   }
 
@@ -305,7 +334,8 @@ export default function PortfolioTracker({
       <div className="portfolio-watchlist">
         <h3>Watchlist</h3>
         <p className="disclaimer" style={{ marginTop: 0 }}>
-          Symbols you're following but don't own — not counted in the totals above.
+          Symbols you're following but don't own — not counted in the totals above. You'll get a notification when a
+          symbol moves past its alert threshold on a given day.
         </p>
         <form className="form-grid" onSubmit={handleAddWatch}>
           <label>
@@ -334,6 +364,7 @@ export default function PortfolioTracker({
                 <th>Symbol</th>
                 <th>Price</th>
                 <th>Change</th>
+                <th>Alert at ±%</th>
                 <th></th>
               </tr>
             </thead>
@@ -351,6 +382,17 @@ export default function PortfolioTracker({
                     ) : (
                       "—"
                     )}
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      style={{ width: 70 }}
+                      value={thresholdDrafts[w.id] ?? String(w.alertThresholdPct)}
+                      onChange={(e) => setThresholdDrafts((current) => ({ ...current, [w.id]: e.target.value }))}
+                      onBlur={() => handleThresholdBlur(w.id, w.alertThresholdPct)}
+                    />
                   </td>
                   <td>
                     <button

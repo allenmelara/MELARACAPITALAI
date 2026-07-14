@@ -49,6 +49,19 @@ export async function addRealEstateHolding(
   };
 }
 
+export async function updateRealEstateHolding(
+  id: string,
+  params: { name?: string; estimatedValue?: number; mortgageBalance?: number }
+): Promise<void> {
+  const supabase = await createClient();
+  const row: Record<string, unknown> = {};
+  if (params.name !== undefined) row.name = params.name;
+  if (params.estimatedValue !== undefined) row.estimated_value = params.estimatedValue;
+  if (params.mortgageBalance !== undefined) row.mortgage_balance = params.mortgageBalance;
+  const { error } = await supabase.from("real_estate_holdings").update(row).eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteRealEstateHolding(id: string): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.from("real_estate_holdings").delete().eq("id", id);

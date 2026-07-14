@@ -14,6 +14,15 @@ export default function BillsSection({ initialBills }: { initialBills: Bill[] })
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    name: string;
+    amount: string;
+    dueDay: string;
+    category: string;
+    autopay: boolean;
+  }>({ name: "", amount: "", dueDay: "", category: "", autopay: false });
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   async function refresh() {
     const response = await fetch("/api/bills");
@@ -65,6 +74,50 @@ export default function BillsSection({ initialBills }: { initialBills: Bill[] })
       await refresh();
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  function startEdit(bill: Bill) {
+    setEditingId(bill.id);
+    setEditDraft({
+      name: bill.name,
+      amount: String(bill.amount),
+      dueDay: String(bill.dueDay),
+      category: bill.category ?? "",
+      autopay: bill.autopay
+    });
+    setError("");
+  }
+
+  async function handleUpdate(id: string) {
+    const amountNum = Number(editDraft.amount);
+    const dueDayNum = Number(editDraft.dueDay);
+    if (!editDraft.name.trim() || !(amountNum >= 0) || !(dueDayNum >= 1 && dueDayNum <= 31)) {
+      setError("Enter a bill name, an amount of 0 or more, and a due day between 1 and 31.");
+      return;
+    }
+    setError("");
+    setUpdatingId(id);
+    try {
+      const response = await fetch(`/api/bills/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editDraft.name.trim(),
+          amount: amountNum,
+          dueDay: dueDayNum,
+          category: editDraft.category.trim() || undefined,
+          autopay: editDraft.autopay
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update bill.");
+      setEditingId(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update bill.");
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -135,24 +188,77 @@ export default function BillsSection({ initialBills }: { initialBills: Bill[] })
             </tr>
           </thead>
           <tbody>
-            {bills.map((b) => (
-              <tr key={b.id}>
-                <td>{b.name}</td>
-                <td>{money(b.amount)}</td>
-                <td>{b.dueDay}</td>
-                <td>{b.category || "—"}</td>
-                <td>{b.autopay ? "Yes" : "No"}</td>
-                <td>
-                  <button
-                    className="secondary portfolio-remove"
-                    onClick={() => handleDelete(b.id)}
-                    disabled={deletingId === b.id}
-                  >
-                    {deletingId === b.id ? "..." : "Remove"}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {bills.map((b) =>
+              editingId === b.id ? (
+                <tr key={b.id}>
+                  <td>
+                    <input value={editDraft.name} onChange={(e) => setEditDraft((v) => ({ ...v, name: e.target.value }))} />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editDraft.amount}
+                      onChange={(e) => setEditDraft((v) => ({ ...v, amount: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={editDraft.dueDay}
+                      onChange={(e) => setEditDraft((v) => ({ ...v, dueDay: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      value={editDraft.category}
+                      onChange={(e) => setEditDraft((v) => ({ ...v, category: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={editDraft.autopay}
+                      onChange={(e) => setEditDraft((v) => ({ ...v, autopay: e.target.checked }))}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      className="secondary portfolio-remove"
+                      onClick={() => handleUpdate(b.id)}
+                      disabled={updatingId === b.id}
+                    >
+                      {updatingId === b.id ? "..." : "Save"}
+                    </button>
+                    <button className="secondary portfolio-remove" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={b.id}>
+                  <td>{b.name}</td>
+                  <td>{money(b.amount)}</td>
+                  <td>{b.dueDay}</td>
+                  <td>{b.category || "—"}</td>
+                  <td>{b.autopay ? "Yes" : "No"}</td>
+                  <td>
+                    <button className="secondary portfolio-remove" onClick={() => startEdit(b)}>
+                      Edit
+                    </button>
+                    <button
+                      className="secondary portfolio-remove"
+                      onClick={() => handleDelete(b.id)}
+                      disabled={deletingId === b.id}
+                    >
+                      {deletingId === b.id ? "..." : "Remove"}
+                    </button>
+                  </td>
+                </tr>
+              )
+            )}
           </tbody>
         </table>
       )}

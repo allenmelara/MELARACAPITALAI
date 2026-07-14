@@ -5,6 +5,7 @@ import { logWarn } from "@/lib/logger";
 export type WatchlistItem = {
   id: string;
   symbol: string;
+  alertThresholdPct: number;
   createdAt: string;
 };
 
@@ -12,10 +13,15 @@ export async function listWatchlistItems(): Promise<WatchlistItem[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("watchlist_items")
-    .select("id, symbol, created_at")
+    .select("id, symbol, alert_threshold_pct, created_at")
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return (data ?? []).map((w) => ({ id: w.id, symbol: w.symbol, createdAt: w.created_at }));
+  return (data ?? []).map((w) => ({
+    id: w.id,
+    symbol: w.symbol,
+    alertThresholdPct: Number(w.alert_threshold_pct),
+    createdAt: w.created_at
+  }));
 }
 
 export async function addWatchlistItem(userId: string, symbol: string): Promise<WatchlistItem> {
@@ -23,10 +29,16 @@ export async function addWatchlistItem(userId: string, symbol: string): Promise<
   const { data, error } = await supabase
     .from("watchlist_items")
     .insert({ user_id: userId, symbol: symbol.toUpperCase() })
-    .select("id, symbol, created_at")
+    .select("id, symbol, alert_threshold_pct, created_at")
     .single();
   if (error) throw error;
-  return { id: data.id, symbol: data.symbol, createdAt: data.created_at };
+  return { id: data.id, symbol: data.symbol, alertThresholdPct: Number(data.alert_threshold_pct), createdAt: data.created_at };
+}
+
+export async function updateWatchlistAlertThreshold(id: string, alertThresholdPct: number): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("watchlist_items").update({ alert_threshold_pct: alertThresholdPct }).eq("id", id);
+  if (error) throw error;
 }
 
 export async function deleteWatchlistItem(id: string): Promise<void> {

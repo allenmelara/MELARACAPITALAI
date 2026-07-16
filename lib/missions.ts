@@ -19,14 +19,14 @@ export type Mission = {
 };
 
 const CATEGORY_CTA: Record<CategoryKey, { href: string; label: string }> = {
-  cashFlow: { href: "/dashboard#monthly-budget", label: "Log this month's budget" },
+  cashFlow: { href: "/dashboard/analytics#monthly-budget", label: "Log this month's budget" },
   emergencySavings: { href: "/dashboard/accounts", label: "Add a cash account" },
   debt: { href: "/dashboard/accounts", label: "Review your debts" },
-  savingsConsistency: { href: "/dashboard#monthly-budget", label: "Log this month's budget" },
+  savingsConsistency: { href: "/dashboard/analytics#monthly-budget", label: "Log this month's budget" },
   diversification: { href: "/dashboard/portfolio", label: "Add a holding" },
   retirementProgress: { href: "/dashboard/onboarding", label: "Complete your profile" },
   insuranceReadiness: { href: "/dashboard/health", label: "Answer insurance questions" },
-  spendingStability: { href: "/dashboard#monthly-budget", label: "Review this month's spending" }
+  spendingStability: { href: "/dashboard/analytics#monthly-budget", label: "Review this month's spending" }
 };
 
 const MAX_MISSIONS = 3;

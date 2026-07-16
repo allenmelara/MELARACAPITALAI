@@ -119,5 +119,8 @@ export async function updatePassword(_prevState: AuthState, formData: FormData):
   if (error) {
     return { error: error.message };
   }
-  redirect("/dashboard?passwordUpdated=1");
+  // The "password updated" notice renders on the analytics page (see
+  // app/dashboard/analytics/page.tsx's searchParams.passwordUpdated check),
+  // not the Office landing at plain /dashboard.
+  redirect("/dashboard/analytics?passwordUpdated=1");
 }

@@ -543,3 +543,29 @@ alter table public.bills
 -- Document Analysis import can update an existing position's shares/cost
 -- basis (a weighted-average merge) instead of only adding new rows.
 create policy "Users can update their holdings" on public.holdings for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Phase 8: Office gamification. Append-only XP ledger — XP is only ever
+-- added, never removed, so a user's level never regresses even when the
+-- underlying financial signal that earned it (a streak, a score) later
+-- dips. Awarded exclusively by the daily cron (service-role), mirroring
+-- public.notifications' dedupe_key pattern: one row per (user_id,
+-- dedupe_key) ever, so a still-true condition on a later cron run never
+-- double-awards.
+create table if not exists public.xp_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  event_type text not null check (event_type in (
+    'score_increase', 'category_mastered', 'streak_milestone',
+    'goal_milestone', 'net_worth_increase', 'budget_logged'
+  )),
+  xp_amount integer not null check (xp_amount > 0),
+  dedupe_key text not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, dedupe_key)
+);
+
+alter table public.xp_events enable row level security;
+
+-- Read-only for users — XP is only ever granted server-side (service role,
+-- from the cron), so there is deliberately no insert/update policy here.
+create policy "Users can read their xp events" on public.xp_events for select using (auth.uid() = user_id);

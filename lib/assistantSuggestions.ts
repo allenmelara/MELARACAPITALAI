@@ -132,6 +132,6 @@ export function contextFromPath(pathname: string): AssistantContext {
   if (pathname.startsWith("/dashboard/portfolio")) return "dashboard:portfolio";
   if (pathname.startsWith("/dashboard/news")) return "dashboard:news";
   if (pathname.startsWith("/dashboard/learn")) return "dashboard:learn";
-  if (pathname === "/dashboard") return "dashboard:overview";
+  if (pathname.startsWith("/dashboard/analytics")) return "dashboard:overview";
   return "general";
 }

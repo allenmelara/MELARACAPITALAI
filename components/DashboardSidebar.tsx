@@ -24,13 +24,17 @@ import {
   UserCircle,
   Landmark,
   Target,
-  HeartPulse
+  HeartPulse,
+  Gamepad2
 } from "lucide-react";
 import { signOutAction } from "@/app/auth/actions";
 import type { Plan } from "@/lib/profile";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  // /dashboard is now the Office (Phase 8 gamification) — the game itself
+  // is the primary landing experience; the old analytics-heavy dashboard
+  // moved to /dashboard/analytics, listed further down.
+  { href: "/dashboard", label: "Office", icon: Gamepad2, exact: true },
   { href: "/dashboard/accounts", label: "Accounts", icon: Landmark },
   { href: "/dashboard/goals", label: "Goals", icon: Target },
   { href: "/dashboard/health", label: "Financial Health", icon: HeartPulse },
@@ -43,6 +47,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/news", label: "News Feed", icon: Newspaper },
   { href: "/dashboard/learn", label: "Learn", icon: GraduationCap },
   { href: "/dashboard/reports", label: "Saved Reports", icon: FolderOpen },
+  { href: "/dashboard/analytics", label: "Analytics", icon: LayoutDashboard },
   { href: "/pricing", label: "Billing", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings }
 ];

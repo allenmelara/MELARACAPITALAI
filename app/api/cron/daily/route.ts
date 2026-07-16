@@ -3,12 +3,14 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { createNotification, type NotificationType } from "@/lib/notifications";
 import { DEFAULT_PREFERENCES } from "@/lib/notificationPreferences";
 import { calculateSavingsStreak, calculateInvestmentConsistencyStreak, type Streak } from "@/lib/streaks";
-import { detectSpendingAnomalies, type BudgetCategoryEntry } from "@/lib/budgetCalc";
+import { detectSpendingAnomalies, currentMonthKey, type BudgetCategoryEntry } from "@/lib/budgetCalc";
 import { withNextDueDate, type Bill } from "@/lib/bills";
 import { getQuoteChange } from "@/lib/finnhub";
 import { sendNotificationEmail } from "@/lib/email";
 import { money } from "@/lib/finance";
 import { logError, logWarn } from "@/lib/logger";
+import { awardXp } from "@/lib/xpAwarding";
+import { XP_AMOUNTS, xpForStreakMilestone } from "@/lib/xpCalc";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -31,7 +33,8 @@ type Prefs = {
 
 const BILL_DUE_WITHIN_DAYS = 3;
 
-type ScoreRow = { snapshot_date: string; overall_score: number | null };
+type CategoryScoreRow = { key: string; score: number; maxScore: number; available: boolean };
+type ScoreRow = { snapshot_date: string; overall_score: number | null; category_scores: CategoryScoreRow[] | null };
 type NetWorthRow = { snapshot_date: string; net_worth: number };
 
 // Mirrors components/dashboard/CelebrationBanner.tsx's client-side
@@ -148,70 +151,63 @@ async function processUser(
   isFirstOfMonth: boolean
 ) {
   const prefs = await getPrefs(supabase, userId);
-  if (!prefs.inAppEnabled && !prefs.emailEnabled) return;
 
   const wantsWeekly = isMonday && prefs.weeklyRecap;
   const wantsMonthly = isFirstOfMonth && prefs.monthlyReport;
 
-  // Score/net-worth based notifications (daily check-in, weekly recap,
-  // monthly report, score change) all read the same two snapshot tables —
-  // already-computed from the user's last dashboard visit rather than
-  // recomputed here, since recomputing would mean an unbounded Finnhub call
-  // per user in a single batch invocation, and this route has no per-user
-  // session to call the cookie-scoped lib functions with anyway.
-  if (prefs.dailyCheckin || wantsWeekly || wantsMonthly || prefs.scoreChange) {
-    const [{ data: scoreRows }, { data: netWorthRows }] = await Promise.all([
-      supabase
-        .from("health_score_snapshots")
-        .select("snapshot_date, overall_score")
-        .eq("user_id", userId)
-        .order("snapshot_date", { ascending: false })
-        .limit(35),
-      supabase
-        .from("net_worth_snapshots")
-        .select("snapshot_date, net_worth")
-        .eq("user_id", userId)
-        .order("snapshot_date", { ascending: false })
-        .limit(35)
-    ]);
+  // Score/net-worth/goal/streak checks below now always run, even for a
+  // user with every notification disabled — Phase 8 (Office gamification)
+  // awards XP off these same conditions, and XP is a core game mechanic
+  // independent of whether the user wants to be pinged about it. Each
+  // check function still gates its own deliver() call on the matching
+  // preference internally; only XP awarding is unconditional.
+  const [{ data: scoreRows }, { data: netWorthRows }] = await Promise.all([
+    supabase
+      .from("health_score_snapshots")
+      .select("snapshot_date, overall_score, category_scores")
+      .eq("user_id", userId)
+      .order("snapshot_date", { ascending: false })
+      .limit(35),
+    supabase
+      .from("net_worth_snapshots")
+      .select("snapshot_date, net_worth")
+      .eq("user_id", userId)
+      .order("snapshot_date", { ascending: false })
+      .limit(35)
+  ]);
 
-    const scores = (scoreRows ?? []) as ScoreRow[];
-    const netWorths = (netWorthRows ?? []) as NetWorthRow[];
+  const scores = (scoreRows ?? []) as ScoreRow[];
+  const netWorths = (netWorthRows ?? []) as NetWorthRow[];
 
-    if (scores.length > 0 || netWorths.length > 0) {
-      const todayStr = new Date().toISOString().slice(0, 10);
+  if (scores.length > 0 || netWorths.length > 0) {
+    const todayStr = new Date().toISOString().slice(0, 10);
 
-      if (prefs.dailyCheckin) {
-        await deliver(
-          supabase,
-          userId,
-          email,
-          "daily_checkin",
-          "Your daily check-in",
-          buildSummary(scores[0], netWorths[0], todayStr),
-          prefs
-        );
-      }
-      if (wantsWeekly) {
-        const body = buildRecap(scores, netWorths, 7, "week", todayStr);
-        if (body) await deliver(supabase, userId, email, "weekly_recap", "Your weekly recap", body, prefs);
-      }
-      if (wantsMonthly) {
-        const body = buildRecap(scores, netWorths, 30, "month", todayStr);
-        if (body) await deliver(supabase, userId, email, "monthly_report", "Your monthly progress report", body, prefs);
-      }
-      if (prefs.scoreChange) {
-        await checkScoreChange(supabase, userId, email, scores, prefs);
-      }
+    if (prefs.dailyCheckin) {
+      await deliver(
+        supabase,
+        userId,
+        email,
+        "daily_checkin",
+        "Your daily check-in",
+        buildSummary(scores[0], netWorths[0], todayStr),
+        prefs
+      );
     }
+    if (wantsWeekly) {
+      const body = buildRecap(scores, netWorths, 7, "week", todayStr);
+      if (body) await deliver(supabase, userId, email, "weekly_recap", "Your weekly recap", body, prefs);
+    }
+    if (wantsMonthly) {
+      const body = buildRecap(scores, netWorths, 30, "month", todayStr);
+      if (body) await deliver(supabase, userId, email, "monthly_report", "Your monthly progress report", body, prefs);
+    }
+    await checkScoreChange(supabase, userId, email, scores, prefs);
+    await checkNetWorthXp(userId, netWorths);
   }
 
-  if (prefs.goalMilestone) {
-    await checkGoalMilestones(supabase, userId, email, prefs);
-  }
-  if (prefs.streakMilestone) {
-    await checkStreakMilestones(supabase, userId, email, prefs);
-  }
+  await checkGoalMilestones(supabase, userId, email, prefs);
+  await checkStreakMilestones(supabase, userId, email, prefs);
+
   if (prefs.budgetChallenge) {
     await checkBudgetChallenges(supabase, userId, email, prefs);
   }
@@ -234,22 +230,59 @@ async function checkScoreChange(
   prefs: Prefs
 ) {
   const nonNull = scores.filter((s) => s.overall_score !== null);
-  if (nonNull.length < 2) return;
-  const latest = nonNull[0];
-  const prior = nonNull[1];
-  const rise = (latest.overall_score as number) - (prior.overall_score as number);
-  if (rise < SCORE_RISE_THRESHOLD) return;
+  if (nonNull.length >= 2) {
+    const latest = nonNull[0];
+    const prior = nonNull[1];
+    const rise = (latest.overall_score as number) - (prior.overall_score as number);
 
-  await deliver(
-    supabase,
-    userId,
-    email,
-    "score_change",
-    "Your Financial Health Score went up",
-    `Your Financial Health Score rose ${rise} points to ${latest.overall_score}.`,
-    prefs,
-    `score_change:${latest.snapshot_date}`
-  );
+    if (rise >= SCORE_RISE_THRESHOLD) {
+      await awardXp(userId, {
+        eventType: "score_increase",
+        xpAmount: XP_AMOUNTS.scoreIncrease,
+        dedupeKey: `score_increase:${latest.snapshot_date}`
+      });
+      if (prefs.scoreChange) {
+        await deliver(
+          supabase,
+          userId,
+          email,
+          "score_change",
+          "Your Financial Health Score went up",
+          `Your Financial Health Score rose ${rise} points to ${latest.overall_score}.`,
+          prefs,
+          `score_change:${latest.snapshot_date}`
+        );
+      }
+    }
+  }
+
+  await checkCategoryMastery(userId, scores[0]?.category_scores ?? null);
+}
+
+// Dedupe key is per-category, with no date component — a category mastered
+// once is awarded once, ever, regardless of how many times it dips back
+// below max and is remastered later. This is what keeps XP append-only in
+// spirit, not just in schema.
+async function checkCategoryMastery(userId: string, categoryScores: CategoryScoreRow[] | null) {
+  for (const category of categoryScores ?? []) {
+    if (!category.available || category.score < category.maxScore) continue;
+    await awardXp(userId, {
+      eventType: "category_mastered",
+      xpAmount: XP_AMOUNTS.categoryMastered,
+      dedupeKey: `category_mastered:${category.key}`
+    });
+  }
+}
+
+async function checkNetWorthXp(userId: string, netWorths: NetWorthRow[]) {
+  if (netWorths.length < 2) return;
+  const [latest, prior] = netWorths;
+  if (latest.net_worth <= prior.net_worth) return;
+  await awardXp(userId, {
+    eventType: "net_worth_increase",
+    xpAmount: XP_AMOUNTS.netWorthIncrease,
+    dedupeKey: `net_worth_increase:${latest.snapshot_date}`
+  });
 }
 
 async function checkGoalMilestones(supabase: ServiceClient, userId: string, email: string | null, prefs: Prefs) {
@@ -261,16 +294,25 @@ async function checkGoalMilestones(supabase: ServiceClient, userId: string, emai
 
   for (const goal of goals) {
     if (!(goal.target_amount > 0) || goal.current_amount < goal.target_amount) continue;
-    await deliver(
-      supabase,
-      userId,
-      email,
-      "goal_milestone",
-      "You've reached a goal",
-      `You've reached your "${goal.name}" goal.`,
-      prefs,
-      `goal_milestone:${goal.id}`
-    );
+
+    await awardXp(userId, {
+      eventType: "goal_milestone",
+      xpAmount: XP_AMOUNTS.goalMilestone,
+      dedupeKey: `goal_milestone:${goal.id}`
+    });
+
+    if (prefs.goalMilestone) {
+      await deliver(
+        supabase,
+        userId,
+        email,
+        "goal_milestone",
+        "You've reached a goal",
+        `You've reached your "${goal.name}" goal.`,
+        prefs,
+        `goal_milestone:${goal.id}`
+      );
+    }
   }
 }
 
@@ -279,18 +321,24 @@ async function checkStreakMilestones(supabase: ServiceClient, userId: string, em
   // limit to get the most recent N months, then reverse to ascending —
   // the shape calculateSavingsStreak/calculateInvestmentConsistencyStreak
   // expect (they walk forward for the longest run, backward from the end
-  // for the current one).
+  // for the current one). `month` is selected too (not just for the streak
+  // calculators) so this same fetch can also detect "did they log this
+  // month's budget yet" for budget_logged XP, without a second query.
   const { data } = await supabase
     .from("monthly_budgets")
-    .select("income, categories")
+    .select("month, income, categories")
     .eq("user_id", userId)
     .order("month", { ascending: false })
     .limit(12);
-  const history = ((data ?? []) as Array<{ income: number; categories: BudgetCategoryEntry[] }>).slice().reverse();
-  if (history.length === 0) return;
+  const rows = ((data ?? []) as Array<{ month: string; income: number; categories: BudgetCategoryEntry[] }>)
+    .slice()
+    .reverse();
+  if (rows.length === 0) return;
 
+  const history = rows.map((r) => ({ income: r.income, categories: r.categories }));
   await checkStreakType(supabase, userId, email, prefs, "savings", calculateSavingsStreak(history));
   await checkStreakType(supabase, userId, email, prefs, "investing", calculateInvestmentConsistencyStreak(history));
+  await checkBudgetLoggedXp(userId, rows[rows.length - 1].month);
 }
 
 async function checkStreakType(
@@ -302,17 +350,35 @@ async function checkStreakType(
   streak: Streak
 ) {
   if (!STREAK_MILESTONES.includes(streak.currentMonths)) return;
-  const label = kind === "savings" ? "income above spending" : "money logged toward savings/investments";
-  await deliver(
-    supabase,
-    userId,
-    email,
-    "streak_milestone",
-    "Streak milestone reached",
-    `${streak.currentMonths} months in a row with ${label}.`,
-    prefs,
-    `streak_milestone:${kind}:${streak.currentMonths}`
-  );
+
+  await awardXp(userId, {
+    eventType: "streak_milestone",
+    xpAmount: xpForStreakMilestone(streak.currentMonths),
+    dedupeKey: `streak_milestone:${kind}:${streak.currentMonths}`
+  });
+
+  if (prefs.streakMilestone) {
+    const label = kind === "savings" ? "income above spending" : "money logged toward savings/investments";
+    await deliver(
+      supabase,
+      userId,
+      email,
+      "streak_milestone",
+      "Streak milestone reached",
+      `${streak.currentMonths} months in a row with ${label}.`,
+      prefs,
+      `streak_milestone:${kind}:${streak.currentMonths}`
+    );
+  }
+}
+
+async function checkBudgetLoggedXp(userId: string, latestMonth: string) {
+  if (latestMonth !== currentMonthKey()) return;
+  await awardXp(userId, {
+    eventType: "budget_logged",
+    xpAmount: XP_AMOUNTS.budgetLogged,
+    dedupeKey: `budget_logged:${latestMonth}`
+  });
 }
 
 async function checkBudgetChallenges(supabase: ServiceClient, userId: string, email: string | null, prefs: Prefs) {

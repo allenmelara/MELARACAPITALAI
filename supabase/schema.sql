@@ -537,3 +537,9 @@ alter table public.bills
   )) not valid;
 -- Optional follow-up once existing bill categories are confirmed clean:
 -- alter table public.bills validate constraint bills_category_check;
+
+-- Phase 7: holdings never had an update policy (only select/insert/delete) —
+-- same gap watchlist_items had before Phase 5 added one. Needed now that
+-- Document Analysis import can update an existing position's shares/cost
+-- basis (a weighted-average merge) instead of only adding new rows.
+create policy "Users can update their holdings" on public.holdings for update using (auth.uid() = user_id) with check (auth.uid() = user_id);

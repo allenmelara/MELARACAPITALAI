@@ -60,6 +60,19 @@ export async function addHolding(
   };
 }
 
+export async function updateHolding(
+  id: string,
+  params: { shares?: number; costBasis?: number; annualDividendPerShare?: number }
+): Promise<void> {
+  const supabase = await createClient();
+  const row: Record<string, unknown> = {};
+  if (params.shares !== undefined) row.shares = params.shares;
+  if (params.costBasis !== undefined) row.cost_basis = params.costBasis;
+  if (params.annualDividendPerShare !== undefined) row.annual_dividend_per_share = params.annualDividendPerShare;
+  const { error } = await supabase.from("holdings").update(row).eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteHolding(id: string): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.from("holdings").delete().eq("id", id);

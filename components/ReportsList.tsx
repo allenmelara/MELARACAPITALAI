@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import type { Report } from "@/lib/reports";
-import { parseStructuredCompanyReport } from "@/lib/structuredReport";
+import { parseStructuredCompanyReport, parseStructuredDocumentExtraction } from "@/lib/structuredReport";
 import StructuredReport from "@/components/StructuredReport";
+import StructuredDocumentReport from "@/components/document/StructuredDocumentReport";
 import ReportChat from "@/components/ReportChat";
 
 export default function ReportsList({ initialReports }: { initialReports: Report[] }) {
@@ -94,10 +95,17 @@ export default function ReportsList({ initialReports }: { initialReports: Report
 }
 
 function ExpandedReport({ report }: { report: Report }) {
-  const structured = parseStructuredCompanyReport(report.output);
+  const structuredCompany = parseStructuredCompanyReport(report.output);
+  const structuredDocument = structuredCompany ? null : parseStructuredDocumentExtraction(report.output);
   return (
     <div className="expanded-report">
-      {structured ? <StructuredReport data={structured} /> : <div className="report">{report.output}</div>}
+      {structuredCompany ? (
+        <StructuredReport data={structuredCompany} />
+      ) : structuredDocument ? (
+        <StructuredDocumentReport data={structuredDocument} />
+      ) : (
+        <div className="report">{report.output}</div>
+      )}
       <ReportChat reportId={report.id} module={report.module} />
     </div>
   );

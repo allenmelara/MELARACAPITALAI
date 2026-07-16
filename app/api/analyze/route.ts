@@ -1,17 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  SYSTEM_PROMPT,
-  companyAnalysisPrompt,
-  documentAnalysisPrompt,
-  realEstateAnalysisPrompt,
-  wealthAnalysisPrompt,
-  INVESTMENT_REPORT_TOOL
-} from "@/lib/prompts";
+import { SYSTEM_PROMPT, companyAnalysisPrompt, realEstateAnalysisPrompt, wealthAnalysisPrompt, INVESTMENT_REPORT_TOOL } from "@/lib/prompts";
 import { getUser } from "@/lib/supabase/server";
 import { getPlan } from "@/lib/profile";
-import { PLAN_LIMITS, documentCharLimit } from "@/lib/limits";
+import { PLAN_LIMITS } from "@/lib/limits";
 import { countUsageSince, recordUsage, startOfCurrentMonthIso } from "@/lib/usage";
 import { logError, logWarn } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -21,7 +14,7 @@ export const runtime = "nodejs";
 const MAX_STRUCTURED_PAYLOAD_CHARS = 20_000;
 
 const bodySchema = z.object({
-  mode: z.enum(["company", "document", "real_estate", "wealth"]),
+  mode: z.enum(["company", "real_estate", "wealth"]),
   payload: z.unknown()
 });
 
@@ -54,9 +47,10 @@ export async function POST(request: Request) {
 
     const plan = await getPlan();
 
-    // Only the expensive, AI-heavy modes are metered. Real estate and wealth
-    // calculators stay unrestricted on every plan, matching the rest of the
-    // app's calculators/saved-reports/navigation.
+    // Only the expensive, AI-heavy "company" mode is metered. Real estate
+    // and wealth calculators stay unrestricted on every plan, matching the
+    // rest of the app's calculators/saved-reports/navigation. Document
+    // extraction now lives in its own metered route (app/api/documents/extract).
     if (mode === "company") {
       const used = await countUsageSince("analyze", startOfCurrentMonthIso());
       if (used >= PLAN_LIMITS[plan].aiResearchCredits) {
@@ -65,32 +59,11 @@ export async function POST(request: Request) {
           { status: 402 }
         );
       }
-      const size = JSON.stringify(payload ?? "").length;
-      if (size > MAX_STRUCTURED_PAYLOAD_CHARS) {
-        return NextResponse.json({ error: "Payload is too large." }, { status: 400 });
-      }
-    } else if (mode === "document") {
-      const used = await countUsageSince("document", startOfCurrentMonthIso());
-      if (used >= PLAN_LIMITS[plan].documentUploadsPerMonth) {
-        return NextResponse.json(
-          { error: `You've used all your ${plan} plan's document uploads this month. Upgrade for more.` },
-          { status: 402 }
-        );
-      }
-      const maxChars = documentCharLimit(plan);
-      if (maxChars !== Infinity && String(payload ?? "").length > maxChars) {
-        return NextResponse.json(
-          {
-            error: `Document exceeds your ${plan} plan's ~${PLAN_LIMITS[plan].documentMaxPages}-page limit. Upgrade for a higher limit.`
-          },
-          { status: 400 }
-        );
-      }
-    } else {
-      const size = JSON.stringify(payload ?? "").length;
-      if (size > MAX_STRUCTURED_PAYLOAD_CHARS) {
-        return NextResponse.json({ error: "Payload is too large." }, { status: 400 });
-      }
+    }
+
+    const size = JSON.stringify(payload ?? "").length;
+    if (size > MAX_STRUCTURED_PAYLOAD_CHARS) {
+      return NextResponse.json({ error: "Payload is too large." }, { status: 400 });
     }
 
     const prompt = (() => {
@@ -101,8 +74,6 @@ export async function POST(request: Request) {
           return realEstateAnalysisPrompt(payload);
         case "wealth":
           return wealthAnalysisPrompt(payload);
-        case "document":
-          return documentAnalysisPrompt(String(payload ?? ""), documentCharLimit(plan));
       }
     })();
 
@@ -140,11 +111,10 @@ export async function POST(request: Request) {
           .map((block) => block.text)
           .join("\n");
 
-    // Real estate and wealth calculators are never metered — only record
-    // usage for the two AI-heavy modes that actually consume plan limits.
-    if (mode === "company" || mode === "document") {
+    // Real estate and wealth calculators are never metered.
+    if (mode === "company") {
       try {
-        await recordUsage(user.id, mode === "company" ? "analyze" : "document");
+        await recordUsage(user.id, "analyze");
       } catch (usageError) {
         logWarn("analyze.recordUsage", usageError);
       }

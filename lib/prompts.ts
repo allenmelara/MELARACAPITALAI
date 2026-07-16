@@ -1,4 +1,5 @@
 import { PLAN_LIMITS } from "@/lib/limits";
+import { BUDGET_CATEGORIES } from "@/lib/budgetCalc";
 
 export const SYSTEM_PROMPT = `
 You are the analysis engine inside Melara Capital AI.
@@ -437,18 +438,128 @@ export type StructuredCompanyReport = {
   ratioAnalysis?: string;
 };
 
-export function documentAnalysisPrompt(text: string, maxChars: number) {
+// Structured extraction of real financial line items from a bank/brokerage
+// statement (PDF, sent as a native Claude document content block, or
+// TXT/CSV/pasted text) — produces reviewable data the user can import into
+// their real accounts, instead of a free-prose report.
+export type ExtractedItemCategory = "cash_account" | "debt" | "bill" | "holding";
+export type ExtractedItemConfidence = "high" | "medium" | "low";
+
+export type ExtractedDocumentItem = {
+  category: ExtractedItemCategory;
+  name?: string;
+  symbol?: string;
+  amount?: number;
+  shares?: number;
+  // Per-share cost basis — holdings only. Deliberately optional/omittable:
+  // many brokerage statements only print current market value, not what was
+  // originally paid, and reporting market value as cost basis would silently
+  // corrupt every downstream gain/loss figure.
+  costBasis?: number;
+  accountType?: "checking" | "savings" | "emergency_fund" | "other";
+  debtType?: "credit_card" | "student_loan" | "auto_loan" | "mortgage" | "personal_loan" | "other";
+  interestRate?: number;
+  minimumPayment?: number;
+  dueDay?: number;
+  billCategory?: (typeof BUDGET_CATEGORIES)[number];
+  autopay?: boolean;
+  confidence: ExtractedItemConfidence;
+  evidence: string;
+};
+
+export type StructuredDocumentExtraction = {
+  items: ExtractedDocumentItem[];
+};
+
+export const DOCUMENT_EXTRACTION_SYSTEM_PROMPT = `
+You are the document extraction engine inside Melara Capital AI.
+
+Your job is to read a financial statement (bank, brokerage, or similar) and
+extract discrete, verifiable line items a user can review and import into
+their tracked accounts — not to write commentary or analysis.
+
+Rules:
+1. Never invent or infer a number that isn't explicitly stated in the
+   document. If a field isn't stated, omit it entirely rather than guessing
+   — this matters most for a holding's cost basis, which many brokerage
+   statements only show as current market value, not what was originally
+   paid. Never report market value as cost basis.
+2. Set "confidence" honestly per item: "high" for a figure printed plainly
+   and unambiguously, "medium" if it required minor interpretation (e.g.
+   combining a stated rate with a stated balance), "low" if it's inferred
+   rather than directly stated.
+3. Bills are the least reliable category to extract from a single statement
+   — a statement shows one-time transaction lines, not a confirmed recurring
+   monthly obligation. Always set confidence to "low" for any "bill" item,
+   regardless of how clearly the individual transaction line was printed.
+4. Set "evidence" to a short quote or close paraphrase from the document
+   that supports the extracted values, so the user can verify it themselves.
+5. Extract every distinct cash account, debt, recurring bill, and investment
+   holding you can find — do not skip items, and do not merge two distinct
+   accounts or holdings into one item.
+`;
+
+export function documentExtractionPrompt(text?: string, maxChars?: number) {
+  if (text === undefined) {
+    return `
+Extract financial line items from the attached document, then call
+emit_extracted_items with what you find.
+`;
+  }
   return `
-Analyze the following financial document or pasted financial data.
+Extract financial line items from the following document text, then call
+emit_extracted_items with what you find.
 
 DOCUMENT:
-${text.slice(0, maxChars)}
-
-Extract only information supported by the document. Identify missing periods,
-unit conventions, accounting concerns, trends, risks, and useful follow-up
-questions. Do not fabricate ratios when the required values are absent.
+${text.slice(0, maxChars ?? text.length)}
 `;
 }
+
+export const DOCUMENT_EXTRACTION_TOOL = {
+  name: "emit_extracted_items",
+  description:
+    "Return the discrete financial line items found in the document — cash accounts, debts, recurring bills, and investment holdings.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            category: { type: "string", enum: ["cash_account", "debt", "bill", "holding"] },
+            name: {
+              type: "string",
+              description: "Account/debt/bill name as shown on the statement, or the company name for a holding."
+            },
+            symbol: { type: "string", description: "Ticker symbol — holdings only." },
+            amount: { type: "number", description: "Cash account balance, debt balance, or bill amount." },
+            shares: { type: "number", description: "Share count — holdings only." },
+            costBasis: {
+              type: "number",
+              description:
+                "Per-share cost basis — holdings only. Omit entirely unless the document explicitly states a cost or average-cost figure; never report market value as cost basis."
+            },
+            accountType: { type: "string", enum: ["checking", "savings", "emergency_fund", "other"] },
+            debtType: {
+              type: "string",
+              enum: ["credit_card", "student_loan", "auto_loan", "mortgage", "personal_loan", "other"]
+            },
+            interestRate: { type: "number", description: "Annual interest rate percent — debts only." },
+            minimumPayment: { type: "number", description: "Minimum monthly payment — debts only." },
+            dueDay: { type: "number", description: "Day of month a bill is due (1-31), if stated — bills only." },
+            billCategory: { type: "string", enum: [...BUDGET_CATEGORIES], description: "Best-fit budget category — bills only." },
+            autopay: { type: "boolean", description: "Whether the bill appears to be on autopay — bills only." },
+            confidence: { type: "string", enum: ["high", "medium", "low"] },
+            evidence: { type: "string", description: "Short quote or paraphrase from the document supporting this item." }
+          },
+          required: ["category", "confidence", "evidence"]
+        }
+      }
+    },
+    required: ["items"]
+  }
+};
 
 export function realEstateAnalysisPrompt(payload: unknown) {
   return `
